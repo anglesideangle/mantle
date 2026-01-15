@@ -3,8 +3,10 @@
 !.gitignore
 !flake.nix
 !flake.lock
-!.envrc
 !/modules/
 !/modules/**
 !/tests/
 !/tests/**
+!README.md
+!LICENSE
+!.envrc
