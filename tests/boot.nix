@@ -10,14 +10,12 @@
       ...
     }:
     {
-      # -------------------------------------------------------------
-      # 1. Enable your Platform
-      # -------------------------------------------------------------
       mantle.image = {
         enable = true;
-        name = "test-robot";
-        version = "0.0.1";
+        # name = "test-robot";
+        # version = "0.0.1";
       };
+      boot.uki.name = "test";
 
       # Enable the overlay logic to verify the service generates correctly
       mantle.storeOverlay.enable = true;

@@ -27,60 +27,68 @@ with lib;
     # Mount `/var` `/boot` and `/nix/store` according to repart config
     # `/` is a tmpfs, meaning any writes to directories will be forgotten on boot
     # `/var` is writeable to allow for logging
-    fileSystems = {
-      "/" =
-        let
-          partConf = config.image.repart.partitions."store".repartConfig;
-        in
-        {
-          device = "/dev/disk/by-partlabel/${partConf.Label}";
-          fsType = partConf.Format;
-          neededForBoot = true;
+    fileSystems =
+      let
+        store = if cfg.storeOverlay.enable then "/nix/.ro-store" else "/nix/store";
+      in
+      {
+        "/" = {
+          fsType = "tmpfs";
         };
 
-      "/var" =
-        let
-          partConf = config.image.repart.partitions."var".repartConfig;
-        in
-        {
-          device = "/dev/disk/by-partlabel/${partConf.Label}";
-          fsType = partConf.Format;
+        "/var" =
+          let
+            partConf = config.image.repart.partitions."var".repartConfig;
+          in
+          {
+            device = "/dev/disk/by-partlabel/${partConf.Label}";
+            fsType = partConf.Format;
+            neededForBoot = true;
+            options = [
+              "default"
+              "noatime"
+              "data=journal"
+            ];
+          };
+
+        "/boot" =
+          let
+            partConf = config.image.repart.partitions."esp".repartConfig;
+          in
+          {
+            device = "/dev/disk/by-partlabel/${partConf.Label}";
+            fsType = partConf.Format;
+          };
+
+        "${store}" =
+          let
+            partConf = config.image.repart.partitions."store".repartConfig;
+          in
+          {
+            device = "/dev/disk/by-partlabel/${partConf.Label}";
+            fsType = partConf.Format;
+            neededForBoot = true;
+          };
+
+        # see ./repart.nix:
+        # if storeOverlay is enabled, immutable store is /nix/.ro-store
+        # and /nix/store is an overlayfs with /var/nix/upper > /nix/.ro-store
+        # otherwise, immutable store is /nix/store and overlayfs is not needed
+        "/nix/store" = mkIf cfg.storeOverlay.enable {
+          device = "overlay";
+          fsType = "overlay";
           neededForBoot = true;
           options = [
-            "default"
-            "noatime"
-            "data=journal"
+            "lowerdir=/nix/.ro-store"
+            "upperdir=/var/nix/upper"
+            "workdir=/var/nix/work"
+          ];
+          depends = [
+            "/nix/.ro-store"
+            "/var"
           ];
         };
-
-      "/boot" =
-        let
-          partConf = config.image.repart.partitions."esp".repartConfig;
-        in
-        {
-          device = "/dev/disk/by-partlabel/${partConf.Label}";
-          fsType = partConf.Format;
-        };
-
-      # see ./repart.nix:
-      # if storeOverlay is enabled, immutable store is /nix/.ro-store
-      # and /nix/store is an overlayfs with /var/nix/upper > /nix/.ro-store
-      # otherwise, immutable store is /nix/store and overlayfs is not needed
-      "/nix/store" = mkIf cfg.storeOverlay.enable {
-        device = "overlay";
-        fsType = "overlay";
-        neededForBoot = true;
-        options = [
-          "lowerdir=/nix/.ro-store"
-          "upperdir=/var/nix/upper"
-          "workdir=/var/nix/work"
-        ];
-        depends = [
-          "/nix/.ro-store"
-          "/var"
-        ];
       };
-    };
 
     # TODO move?
     boot.tmp.useTmpfs = mkForce true;
@@ -189,6 +197,6 @@ with lib;
         find "$OVERLAY_STORE" -type c -delete 2>/dev/null || true
       '';
     };
-  };
 
+  };
 }

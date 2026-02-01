@@ -32,14 +32,14 @@ with lib;
 
         # automatically configures 00-esp, 10-store-verity, 20-store partitions
         # and dm-verity in initrd
-        # verityStore = {
-        #   enable = true;
-        #   partitionIds = {
-        #     esp = partCfg.esp.id;
-        #     store-verity = partCfg.store-verity.id;
-        #     store = partCfg.store.id;
-        #   };
-        # };
+        verityStore = {
+          enable = true;
+          partitionIds = {
+            esp = partCfg.esp.id;
+            store-verity = partCfg.store-verity.id;
+            store = partCfg.store.id;
+          };
+        };
 
         partitions = {
           ${partCfg.esp.id} = {
@@ -47,8 +47,8 @@ with lib;
               "/EFI/BOOT/BOOT${lib.toUpper efiArch}.EFI".source =
                 "${pkgs.systemd}/lib/systemd/boot/efi/systemd-boot${efiArch}.efi";
 
-              "/EFI/Linux/${config.system.boot.loader.ukiFile}".source =
-                "${config.system.build.uki}/${config.system.boot.loader.ukiFile}";
+              # "/EFI/Linux/${config.system.boot.loader.ukiFile}".source =
+              #   "${config.system.build.uki}/${config.system.boot.loader.ukiFile}";
             };
             repartConfig = {
               Type = "esp";
@@ -61,9 +61,9 @@ with lib;
 
           ${partCfg.store.id} = {
             storePaths = [ config.system.build.toplevel ];
-            nixStorePrefix = if cfg.storeOverlay.enable then "/nix/.ro-store" else "/nix/store";
+            # nixStorePrefix = if cfg.storeOverlay.enable then "/nix/.ro-store" else "/nix/store";
+            nixStorePrefix = "/";
             repartConfig = {
-              Type = "root";
               Label = "root-${config.system.image.version}";
               SizeMinBytes = partCfg.store.size;
               SizeMaxBytes = partCfg.store.size;
@@ -74,7 +74,7 @@ with lib;
           };
 
           empty.repartConfig = {
-            Type = "root";
+            Type = image.repart.partitions.${partCfg.store.id}.Type;
             Label = "_empty";
             Minimize = "off";
             SizeMinBytes = partCfg.store.size;

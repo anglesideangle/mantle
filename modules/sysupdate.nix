@@ -42,7 +42,7 @@ with lib;
 
         Target = {
           InstancesMax = 2;
-          Path = "auto";
+          Path = if cfg.storeOverlay.enable then "/nix/.ro-store" else "/nix/store";
           MatchPattern = "store-@v";
           Type = "partition";
           ReadOnly = "yes";
