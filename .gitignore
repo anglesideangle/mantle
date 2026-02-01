@@ -1,14 +1,2 @@
-*
-
-!.gitignore
-!flake.nix
-!flake.lock
-!/modules/
-!/modules/**
-!/tests/
-!/tests/**
-!/examples/
-!/examples/**
-!README.md
-!LICENSE
-!.envrc
+target/
+.direnv/

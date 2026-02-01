@@ -1,12 +1,13 @@
 {
   description = "A platform for robotics applications";
 
-  inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-  };
+  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+    }:
     let
       allSystems = [
         "x86_64-linux"
@@ -14,7 +15,7 @@
         "aarch64-darwin"
       ];
       forAllSystems = nixpkgs.lib.genAttrs allSystems;
-      pkgsFor = forAllSystems (system: import nixpkgs { inherit system; });
+      pkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system});
     in
     {
       nixosModules.default =
@@ -26,19 +27,27 @@
           ];
         };
 
-      checks = forAllSystems (
-        system:
-        import ./tests {
+      packages = forAllSystems (system: {
+        sanitize-overlay = pkgsFor.${system}.callPackage ./service/package.nix { };
+        default = self.packages.${system}.sanitize-overlay;
+      });
+
+      checks = forAllSystems (system: {
+        modules = import ./tests {
           pkgs = pkgsFor.${system};
           modules = [ self.nixosModules.default ];
-        }
-      );
+        };
+        inherit (self.packages.${system}) sanitize-overlay;
+      });
 
       devShells = forAllSystems (system: {
         default = pkgsFor.${system}.mkShellNoCC {
-          inputsFrom = [ self.formatter.${system} ];
           packages = with pkgsFor.${system}; [
-            nixd
+            nil
+            rust-analyzer
+            nixfmt
+            rustfmt
+            cargo
             self.formatter.${system}
           ];
         };
@@ -51,12 +60,18 @@
 
           runtimeInputs = with pkgsFor.${system}; [
             nixfmt
+            rustfmt
           ];
 
           settings = {
             formatter.nix = {
               command = "nixfmt";
               includes = [ "*.nix" ];
+            };
+
+            formatter.rust = {
+              command = "rustfmt";
+              includes = [ "*.rs" ];
             };
           };
         }
