@@ -18,18 +18,16 @@
       pkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system});
     in
     {
-      nixosModules.default =
-        { modulesPath, ... }:
-        {
-          imports = [
-            ./modules
-            "${modulesPath}/image/repart.nix"
-          ];
-        };
+      nixosModules.default = import ./modules;
 
       packages = forAllSystems (system: {
-        sanitize-overlay = pkgsFor.${system}.callPackage ./service/package.nix { };
-        default = self.packages.${system}.sanitize-overlay;
+        # cli tool:
+        # - build image : config.image -> xz
+        # - flash : ( build image -> write to device )
+        # - deploy image ( build image -> copy to /var/updates, delete upper, sysupdate)
+        # - deploy overlay ( copy overlay toplevel -> mount overlayfs /var/nix/upper )
+        # - activate overlay ( copy overlay toplevel -> mount overlayfs /var/nix/upper )
+        # - deactivate overlay ( destroy overlayfs )
       });
 
       checks = forAllSystems (system: {
@@ -37,12 +35,19 @@
           pkgs = pkgsFor.${system};
           modules = [ self.nixosModules.default ];
         };
-        inherit (self.packages.${system}) sanitize-overlay;
       });
+
+      templates = {
+        basic = {
+          path = ./examples/base;
+          description = "Basic example?";
+        };
+      };
 
       devShells = forAllSystems (system: {
         default = pkgsFor.${system}.mkShellNoCC {
           packages = with pkgsFor.${system}; [
+            lon
             nil
             rust-analyzer
             nixfmt

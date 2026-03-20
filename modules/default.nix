@@ -1,119 +1,94 @@
-{ lib, config, ... }:
-let
-  cfg = config.mantle;
-in
+{
+  lib,
+  modulesPath,
+  ...
+}:
 with lib;
 {
   imports = [
-    ./filesystem.nix
-    ./repart.nix
-    ./sysupdate.nix
-    ./generic.nix
+    ./image.nix
+    ./boot.nix
+    ./update.nix
+    "${modulesPath}/profiles/minimal.nix"
   ];
 
-  options.mantle = {
-    image = {
-      enable = mkEnableOption "Immutable A/B disk partitioning and update system";
+  options.partitions = {
+    enable = mkEnableOption "partitioning";
 
-      # name = mkOption {
-      #   type = types.str;
-      #   description = "Name for the current system image.";
-      # };
-
-      # version = mkOption {
-      #   type = types.str;
-      #   description = "Version string for the current system image (used for updating logic).";
-      # };
-
-      partitions = {
-        esp = {
-          size = mkOption {
-            type = types.str;
-            default = "200M";
-            description = ''
-              Specify the size of the ESP partition.
-            '';
-          };
-          id = mkOption {
-            type = types.str;
-            default = "00-esp";
-            description = ''
-              Specify the attribute name of the ESP partition.
-            '';
-          };
-        };
-        store-verity = {
-          id = mkOption {
-            type = types.str;
-            default = "00-esp";
-            description = ''
-              Specify the attribute name of the store's dm-verity hash partition.
-            '';
-          };
-        };
-        store = {
-          size = mkOption {
-            type = types.str;
-            default = "5G";
-            description = ''
-              Specify the size of the store A and B partitions.
-            '';
-          };
-          id = mkOption {
-            type = types.str;
-            default = "20-store";
-            description = ''
-              Specify the attribute name of the store partition.
-            '';
-          };
-          format = mkOption {
-            type = types.enum [
-              "erofs"
-              "squashfs"
-            ];
-            default = "erofs";
-            description = "The filesystem of the immutable root partition.";
-          };
-        };
-        var = {
-          size = mkOption {
-            type = types.str;
-            default = "5G";
-            description = ''
-              Specify the size of the mutable var partition.
-            '';
-          };
-          id = mkOption {
-            type = types.str;
-            default = "30-var";
-            description = ''
-              Specify the attribute name of the store partition.
-            '';
-          };
-          format = mkOption {
-            type = types.enum [
-              "ext4"
-              "btrfs"
-              "xfs"
-              "zfs"
-            ];
-            default = "ext4";
-            description = "The filesystem of the mutable /var partition.";
-          };
-        };
+    esp = {
+      id = mkOption {
+        type = types.str;
+        default = "00-esp";
       };
-
+      label = mkOption {
+        type = types.str;
+        default = "boot";
+      };
+      format = mkOption {
+        type = types.str;
+        default = "vfat";
+      };
+      size = mkOption {
+        type = types.str;
+      };
     };
 
-    storeOverlay = {
-      enable = mkEnableOption "Mutable /nix/store overlay and update system";
+    store-verity = {
+      id = mkOption {
+        type = types.str;
+        default = "10-store-verity";
+      };
+      label-prefix = mkOption {
+        type = types.str;
+        default = "store-verity";
+      };
+    };
+
+    store = {
+      id = mkOption {
+        type = types.str;
+        default = "20-store";
+      };
+      label-prefix = mkOption {
+        type = types.str;
+        default = "store";
+      };
+      format = mkOption {
+        type = types.str;
+        default = "erofs";
+      };
+      size = mkOption {
+        type = types.str;
+      };
+    };
+
+    empty-store-verity.id = mkOption {
+      type = types.str;
+      default = "30-empty-store-verity";
+    };
+
+    empty-store.id = mkOption {
+      type = types.str;
+      default = "40-empty-store";
+    };
+
+    var = {
+      enable = mkEnableOption "var";
+      id = mkOption {
+        type = types.str;
+        default = "50-var";
+      };
+      label = mkOption {
+        type = types.str;
+        default = "persistent";
+      };
+      format = mkOption {
+        type = types.str;
+        default = "ext4";
+      };
+      size = mkOption {
+        type = types.str;
+      };
     };
   };
-
-  config.assertions = [
-    {
-      assertion = cfg.image.enable || !cfg.storeOverlay.enable;
-      message = "The mantle store overlay can only be enabled along with the immutable image option (`mantle.image.enable = true`).";
-    }
-  ];
 }

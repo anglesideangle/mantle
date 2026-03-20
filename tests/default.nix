@@ -1,5 +1,4 @@
 { pkgs, modules }:
-
 let
   lib = pkgs.lib;
   allFiles = builtins.readDir ./.;
@@ -9,14 +8,19 @@ let
   ) allFiles;
 
   stripSuffix = name: lib.removeSuffix ".nix" name;
-in
-lib.mapAttrs' (name: type: {
-  name = stripSuffix name;
-  value = pkgs.testers.runNixOSTest {
-    imports = [ (import ./${name}) ];
+  tests = lib.mapAttrs' (name: type: {
+    name = stripSuffix name;
+    value = pkgs.testers.runNixOSTest {
+      imports = [ (import ./${name}) ];
 
-    defaults = {
-      imports = modules;
+      defaults = {
+        imports = modules;
+      };
     };
-  };
-}) testFiles
+  }) testFiles;
+in
+pkgs.symlinkJoin {
+  name = "mantle-tests";
+  paths = lib.attrValues tests;
+  passthru.tests = tests;
+}

@@ -10,15 +10,16 @@
       ...
     }:
     {
-      mantle.image = {
+      partitions = {
         enable = true;
-        # name = "test-robot";
-        # version = "0.0.1";
+        esp.size = "128M";
+        store.size = "1024M";
+      };
+      system.image = {
+        id = "mantle-test";
+        version = pkgs.lib.trivial.release;
       };
       boot.uki.name = "test";
-
-      # Enable the overlay logic to verify the service generates correctly
-      mantle.storeOverlay.enable = true;
 
       # -------------------------------------------------------------
       # 2. Mock the Hardware (VM Compatibility Layer)
@@ -50,6 +51,21 @@
         ];
       };
 
+      fileSystems."/nix/.ro-store" = lib.mkForce {
+        device = "host_store";
+        fsType = "9p";
+        options = [
+          "trans=virtio"
+          "version=9p2000.L"
+          "cache=loose"
+        ];
+      };
+
+      fileSystems."/boot" = lib.mkForce {
+        device = "tmpfs";
+        fsType = "tmpfs";
+      };
+
       # Disable the initrd sanitization service for this basic test
       # because it will fail to find the /sysroot/.ro-store paths.
       boot.initrd.systemd.services.sanitize-overlay.enable = lib.mkForce false;
@@ -59,6 +75,8 @@
   # 3. The Test Script
   # -------------------------------------------------------------
   testScript = ''
+    import re
+
     # 1. Wait for boot
     machine.wait_for_unit("multi-user.target")
     machine.succeed("echo 'Mantle System Booted Successfully!'")
@@ -68,7 +86,9 @@
     os_release = machine.succeed("cat /etc/os-release")
     print(os_release) # Useful for debugging in the log
 
-    # Verify our version string is present
-    assert 'IMAGE_VERSION="0.0.1"' in os_release
+    # Verify image version is present and not the old pinned test value
+    match = re.search(r'^IMAGE_VERSION="([^"]+)"$', os_release, re.MULTILINE)
+    assert match is not None
+    assert match.group(1) != "0.0.1"
   '';
 }
