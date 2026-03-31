@@ -51,7 +51,7 @@
         ];
       };
 
-      fileSystems."/nix/.ro-store" = lib.mkForce {
+      fileSystems."/nix/lower" = lib.mkForce {
         device = "host_store";
         fsType = "9p";
         options = [
@@ -67,7 +67,7 @@
       };
 
       # Disable the initrd sanitization service for this basic test
-      # because it will fail to find the /sysroot/.ro-store paths.
+      # because it will fail to find the /sysroot/lower-store paths.
       boot.initrd.systemd.services.sanitize-overlay.enable = lib.mkForce false;
     };
 

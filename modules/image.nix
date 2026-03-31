@@ -8,8 +8,8 @@
 with lib;
 let
   cfg = config.partitions;
-  store-label = "${cfg.store.label-prefix}-${config.system.image.version}";
-  store-verity-label = "${cfg.store.label-prefix}-${config.system.image.version}-verity";
+  store-label = "${cfg.store.label-prefix}_${config.system.image.version}";
+  store-verity-label = "${cfg.store-verity.label-prefix}_${config.system.image.version}";
 in
 {
   imports = [
@@ -60,7 +60,10 @@ in
           };
         };
 
-        ${cfg.store-verity.id}.repartConfig.Label = store-verity-label;
+        ${cfg.store-verity.id}.repartConfig = {
+          Label = store-verity-label;
+          SplitName = "store-verity";
+        };
 
         ${cfg.empty-store.id}.repartConfig = {
           inherit (config.image.repart.partitions.${cfg.store.id}.repartConfig)
@@ -69,24 +72,20 @@ in
             SizeMaxBytes
             ;
           Label = "_empty";
-          Format = "empty";
+          # Format = "empty";
           Minimize = "off";
           SplitName = "-";
         };
 
         ${cfg.empty-store-verity.id}.repartConfig = {
-          inherit (config.image.repart.partitions.${cfg.store-verity.id}.repartConfig)
-            Type
-            SizeMinBytes
-            SizeMaxBytes
-            ;
+          inherit (config.image.repart.partitions.${cfg.store-verity.id}.repartConfig) Type;
           Label = "_empty";
-          Format = "empty";
+          # Format = "empty";
           Minimize = "off";
           SplitName = "-";
         };
 
-        ${cfg.var.id}.repartConfig = mkIf cfg.var.enable {
+        ${cfg.var.id}.repartConfig = {
           Type = "var";
           Format = cfg.var.format;
           Label = cfg.var.label;

@@ -9,6 +9,7 @@ with lib;
     ./image.nix
     ./boot.nix
     ./update.nix
+    ./networking.nix
     "${modulesPath}/profiles/minimal.nix"
   ];
 
@@ -73,7 +74,7 @@ with lib;
     };
 
     var = {
-      enable = mkEnableOption "var";
+      # enable = mkEnableOption "var";
       id = mkOption {
         type = types.str;
         default = "50-var";

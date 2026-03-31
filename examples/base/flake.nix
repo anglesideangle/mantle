@@ -1,8 +1,10 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    mantle.url = "files:///home/asa/Projects/mantle";
-    mantle.nixpkgs.follows = "nixpkgs";
+    mantle = {
+      url = "path:/home/asa/Projects/mantle";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     nixos-hardware.url = "github:nixos/nixos-hardware";
   };
 
@@ -21,25 +23,62 @@
       ];
       forAllSystems = nixpkgs.lib.genAttrs allSystems;
       pkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system});
+
+      pi4SystemCross = forAllSystems (
+        buildPlatform:
+        nixpkgs.lib.nixosSystem {
+          modules = [
+            mantle.nixosModules.default
+            # nixos-hardware.nixosModules.raspberry-pi-4
+            {
+              nixpkgs = {
+                inherit buildPlatform;
+                # hostPlatform = "aarch64-linux";
+                hostPlatform = "x86_64-linux";
+              };
+
+              partitions = {
+                enable = true;
+                esp.size = "128M";
+                store.size = "5G";
+                var.size = "5G";
+              };
+
+              system.image.id = "imageid";
+              boot.uki.name = "ukiname";
+              networking.hostName = "mantle-target";
+            }
+          ];
+        }
+      );
     in
     {
-      nixosModules.default = import ./modules;
-      nixosConfiguration.default = nixpkgs.lib.nixosSystem {
-        modules = [
-          mantle.nixosModules.default
-          nixos-hardware.nixosModules.raspberry-pi-4
-          # { }
-        ];
-      };
+      nixosConfigurations.default = pi4SystemCross."x86_64-linux";
 
-      packages = forAllSystems (system: {
-        # cli tool:
-        # - build image : config.image -> xz
-        # - flash : ( build image -> write to device )
-        # - deploy image ( build image -> copy to /var/updates, delete upper)
-        # - deploy overlay ( copy overlay toplevel -> mount overlayfs /var/nix/upper )
-        # - activate overlay ( copy overlay toplevel -> mount overlayfs /var/nix/upper )
-        # - deactivate overlay ( destroy overlayfs )
-      });
+      packages = forAllSystems (
+        system:
+        mantle.lib.mkTools {
+          pkgs = pkgsFor.${system};
+          nixosConfig = pi4SystemCross.${system};
+          updateVersion = self.shortRev or "dev";
+        }
+      );
+
+      apps = forAllSystems (
+        system:
+        let
+          mkApp = drv: {
+            type = "app";
+            program = nixpkgs.lib.getExe drv;
+          };
+        in
+        {
+          flashInstallImage = mkApp self.packages.${system}.flashInstallImage;
+          activateOverlay = mkApp self.packages.${system}.activateOverlay;
+          deactivateOverlay = mkApp self.packages.${system}.deactivateOverlay;
+          deployUpdate = mkApp self.packages.${system}.deployUpdate;
+          deployOverlay = mkApp self.packages.${system}.deployOverlay;
+        }
+      );
     };
 }

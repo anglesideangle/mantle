@@ -18,16 +18,11 @@
       pkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system});
     in
     {
+      lib.mkTools = import ./lib;
+
       nixosModules.default = import ./modules;
 
       packages = forAllSystems (system: {
-        # cli tool:
-        # - build image : config.image -> xz
-        # - flash : ( build image -> write to device )
-        # - deploy image ( build image -> copy to /var/updates, delete upper, sysupdate)
-        # - deploy overlay ( copy overlay toplevel -> mount overlayfs /var/nix/upper )
-        # - activate overlay ( copy overlay toplevel -> mount overlayfs /var/nix/upper )
-        # - deactivate overlay ( destroy overlayfs )
       });
 
       checks = forAllSystems (system: {
@@ -49,6 +44,7 @@
           packages = with pkgsFor.${system}; [
             lon
             nil
+            nixd
             rust-analyzer
             nixfmt
             rustfmt

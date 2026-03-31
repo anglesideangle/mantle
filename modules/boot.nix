@@ -2,7 +2,7 @@
 with lib;
 let
   cfg = config.partitions;
-  store-label = "${cfg.store.label-prefix}-${config.system.image.version}";
+  store-label = "${cfg.store.label-prefix}_${config.system.image.version}";
 in
 {
   config = mkIf cfg.enable {
@@ -29,7 +29,7 @@ in
         fsType = "tmpfs";
       };
 
-      "/var" = mkIf cfg.var.enable {
+      "/var" = {
         device = "/dev/disk/by-partlabel/${cfg.var.label}";
         fsType = cfg.var.format;
         neededForBoot = true;
@@ -45,21 +45,21 @@ in
         fsType = cfg.esp.format;
       };
 
-      "/nix/.ro-store" = {
+      "/nix/lower" = {
         device = "/dev/disk/by-partlabel/${store-label}";
         fsType = cfg.store.format;
         neededForBoot = true;
       };
 
       "/nix/store" = {
-        device = "/nix/.ro-store";
+        device = "/nix/lower";
         fsType = "none";
         neededForBoot = true;
         options = [
           "bind"
           "ro"
         ];
-        depends = [ "/nix/.ro-store" ];
+        depends = [ "/nix/lower" ];
       };
     };
   };
