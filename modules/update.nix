@@ -8,7 +8,7 @@ let
   sourcePrefix = config.image.repart.name;
 in
 {
-  systemd.sysupdate = lib.mkIf cfg.enable {
+  systemd.sysupdate = lib.mkIf (cfg.enable && (!cfg.isInstaller)) {
     enable = true;
 
     transfers = {
@@ -21,7 +21,7 @@ in
         Target = {
           Type = "partition";
           Path = "auto"; # TODO breaks?
-          # Path = "/nix/lower";
+          # Path = "/usr/nix/store";
           MatchPattern = [ "${storePrefix}_@v" ];
           # MatchPartitionType = "";
           InstancesMax = 2;

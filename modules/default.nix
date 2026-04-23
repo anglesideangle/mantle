@@ -15,6 +15,7 @@ with lib;
 
   options.partitions = {
     enable = mkEnableOption "partitioning";
+    isInstaller = mkEnableOption "Disables unnecessary partitions for use in installation.";
 
     esp = {
       id = mkOption {

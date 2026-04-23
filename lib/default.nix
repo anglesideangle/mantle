@@ -1,3 +1,44 @@
+let
+  mkInstallScript =
+    { pkgs, payload }:
+    pkgs.writeShellApplication {
+      name = "mantle-install";
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.util-linux
+      ];
+      text = ''
+        set -euo pipefail
+
+        if [ "$#" -ne 2 ] || [ "$1" != "--device" ]; then
+          echo "usage: $0 --device /dev/<disk>" >&2
+          exit 2
+        fi
+
+        device="$2"
+
+        if [ ! -b "$device" ]; then
+          echo "$device is not a block device" >&2
+          exit 2
+        fi
+
+        echo "About to flash ${payload} to $device."
+        printf "This will erase all data on %s. Continue? [y/N] " "$device"
+        read -r answer
+
+        case "$answer" in
+          y|Y|yes|YES)
+            ;;
+          *)
+            echo "Aborted"
+            exit 1
+            ;;
+        esac
+
+        dd if="${payload}" of="$device" bs=64M conv=fsync status=progress
+      '';
+    };
+in
 {
   pkgs,
   nixosConfig,
@@ -9,7 +50,7 @@ let
 
   hostUrl = "root@${nixosConfig.config.networking.hostName}";
 
-  flashConfig = nixosConfig.extendModules {
+  initialConfig = nixosConfig.extendModules {
     modules = [
       {
         image.repart.split = mkForce false;
@@ -33,12 +74,55 @@ let
     ];
   };
 
-  flashImage = flashConfig.config.system.build.image;
+  initialImage = initialConfig.config.system.build.finalImage;
+
+  installerConfig =
+    let
+      baseName = initialConfig.config.image.baseName;
+    in
+    initialConfig.extendModules {
+      modules = [
+        (
+          { pkgs, lib, ... }:
+          {
+            system.image.id = lib.mkForce "${initialConfig.config.system.image.id}-installer";
+            partitions.isInstaller = true;
+
+            environment.systemPackages = [
+              (mkInstallScript {
+                inherit pkgs;
+                payload = "${initialImage}/${baseName}.raw";
+              })
+            ];
+          }
+        )
+      ];
+    };
+
+  installerImage = installerConfig.config.system.build.finalImage;
+
+  flashInitialImage =
+    let
+      baseName = initialConfig.config.image.baseName;
+    in
+    mkInstallScript {
+      inherit pkgs;
+      payload = "${initialImage}/${baseName}.raw";
+    };
+
+  flashInstallerImage =
+    let
+      baseName = installerConfig.config.image.baseName;
+    in
+    mkInstallScript {
+      inherit pkgs;
+      payload = "${installerImage}/${baseName}.raw";
+    };
 
   updatePayload =
     let
       baseName = updateConfig.config.image.baseName;
-      updateDrv = updateConfig.config.system.build.image;
+      updateDrv = updateConfig.config.system.build.finalImage;
       ukiDrv = updateConfig.config.system.build.uki;
       ukiFile = updateConfig.config.system.boot.loader.ukiFile;
     in
@@ -56,50 +140,6 @@ let
       '';
 
   overlayToplevel = updateConfig.config.system.build.toplevel;
-
-  flashInstallImage =
-    let
-      baseName = flashConfig.config.image.baseName;
-      imageFile = "${flashImage}/${baseName}.raw";
-    in
-    pkgs.writeShellApplication {
-      name = "flash";
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.nix
-        pkgs.util-linux
-      ];
-      text = ''
-        set -euo pipefail
-
-        if [ "$#" -ne 2 ] || [ "$1" != "--device" ]; then
-          echo "usage: $0 --device /dev/<disk>" >&2
-          exit 2
-        fi
-
-        device="$2"
-
-        if [ ! -b "$device" ]; then
-          echo "$device is not a block device" >&2
-          exit 2
-        fi
-
-        echo "About to flash ${imageFile} to $device."
-        printf "This will destroy all data on %s. Continue? [y/N] " "$device"
-        read -r answer
-
-        case "$answer" in
-          y|Y|yes|YES)
-            ;;
-          *)
-            echo "Aborted"
-            exit 1
-            ;;
-        esac
-
-        dd if="${imageFile}" of="$device" bs=16M conv=fsync status=progress
-      '';
-    };
 
   activateOverlay = pkgs.writeShellApplication {
     name = "activate-overlay";
@@ -163,11 +203,14 @@ let
 in
 {
   inherit
-    flashImage
+
+    initialImage
+    installerImage
     updatePayload
     overlayToplevel
 
-    flashInstallImage
+    flashInitialImage
+    flashInstallerImage
     activateOverlay
     deactivateOverlay
     deployUpdate

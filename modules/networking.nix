@@ -10,7 +10,7 @@ let
     fi
 
     mount -t overlay overlay \
-      -o lowerdir=/nix/lower,upperdir=/var/nix/upper,workdir=/var/nix/work \
+      -o lowerdir=/usr/nix/store,upperdir=/var/nix/upper,workdir=/var/nix/work \
       /nix/store
   '';
 
