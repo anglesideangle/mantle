@@ -29,7 +29,7 @@
 
       inherit (nixpkgs) lib;
 
-      pi4SystemCross = forAllSystems (
+      orinSystemCross = forAllSystems (
         buildPlatform:
         lib.nixosSystem {
           modules = [
@@ -48,6 +48,23 @@
                     gcc.arch = "armv8.2-a";
                     gcc.tune = "cortex-a78ae";
                   };
+                  overlays = [
+                    # cudaSupport should be part of hostPlatform only
+                    # fixes an issue with patches in cuda-legacy evaluating the cuda platform, which are caught by an assertion on x64
+                    (final: prev: {
+                      config =
+                        prev.config
+                        // (
+                          if prev.stdenv.hostPlatform.isAarch64 then
+                            { }
+                          else
+                            {
+                              cudaSupport = false;
+                              cudaCapabilities = [ ];
+                            }
+                        );
+                    })
+                  ];
                 };
 
                 # l4t kernel doesn't have erofs, which is the file type of our store partition
@@ -85,31 +102,6 @@
 
                 hardware.nvidia-jetpack.kernel.realtime = true;
 
-                # L4T 5.15 overlayfs rejects the data-only lowerdir separator
-                # ("::") used by the default initrd /etc overlay mount.
-                # Keep metacopy/redirect_dir, but use a single lowerdir ":".
-                # boot.initrd.systemd.mounts = lib.mkBefore [
-                #   {
-                #     what = "overlay";
-                #     where = "/sysroot/etc";
-                #     type = "overlay";
-                #     options = "nodev,nosuid,relatime,redirect_dir=on,metacopy=on,lowerdir=/run/nixos-etc-metadata:/etc-basedir,ro";
-
-                #     requiredBy = [ "initrd-fs.target" ];
-                #     before = [ "initrd-fs.target" ];
-                #     requires = [ "initrd-find-etc.service" ];
-                #     after = [ "initrd-find-etc.service" ];
-
-                #     unitConfig = {
-                #       RequiresMountsFor = [
-                #         "/sysroot/nix/store"
-                #         "/run/nixos-etc-metadata"
-                #       ];
-                #       DefaultDependencies = false;
-                #     };
-                #   }
-                # ];
-
                 # sad
                 system.nixos-init.enable = lib.mkForce false;
                 system.etc.overlay.enable = lib.mkForce false;
@@ -140,10 +132,10 @@
       packages =
         lib.recursiveUpdate
           (forAllSystems (
-            system:
-            mantle.lib.mkTools {
-              pkgs = pkgsFor.${system};
-              nixosConfig = pi4SystemCross.${system};
+            buildPlatform:
+            mantle.lib.init {
+              pkgs = pkgsFor.${buildPlatform};
+              nixosConfig = orinSystemCross.${buildPlatform};
               updateVersion = self.shortRev or "dev";
             }
           ))

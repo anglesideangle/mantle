@@ -21,13 +21,6 @@
       };
       boot.uki.name = "test";
 
-      # -------------------------------------------------------------
-      # 2. Mock the Hardware (VM Compatibility Layer)
-      # -------------------------------------------------------------
-
-      # QEMU doesn't have your partitions. We force the test VM to use
-      # its own volatile disks for the critical paths so it doesn't hang.
-
       fileSystems."/" = lib.mkForce {
         device = "tmpfs";
         fsType = "tmpfs";

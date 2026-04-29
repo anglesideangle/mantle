@@ -1,6 +1,6 @@
 { pkgs, modules }:
 let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
   allFiles = builtins.readDir ./.;
 
   testFiles = lib.filterAttrs (

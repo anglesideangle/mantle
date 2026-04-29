@@ -47,25 +47,47 @@ in
 {
   pkgs,
   nixosConfig,
-  installerBaseConfig ? nixosConfig,
+  installerBaseConfig ? (
+    nixosConfig.extendModules {
+      modules = [
+        (
+          {
+            config,
+            lib,
+            modulesPath,
+            ...
+          }:
+          {
+            imports = [ "${modulesPath}/installer/cd-dvd/iso-image.nix" ];
+            partitions.enable = lib.mkForce false;
+            image.baseName = lib.mkForce "${config.system.image.id}-iso-${updateVersion}";
+          }
+        )
+      ];
+    }
+  ),
   updateVersion,
 }:
 let
-  inherit (pkgs) lib;
-  inherit (lib) mkForce;
+  # inherit (pkgs) lib;
+  # inherit (lib) mkForce;
 
   hostUrl = "root@${nixosConfig.config.networking.hostName}";
 
   initialConfig = nixosConfig.extendModules {
     modules = [
-      {
-        image.repart.split = mkForce false;
-        image.repart.compression = {
-          enable = true;
-          algorithm = "zstd";
-        };
-        system.image.version = mkForce "0-initial-image";
-      }
+      # "../modules/default.nix"
+      (
+        { lib, ... }:
+        {
+          image.repart.split = lib.mkForce false;
+          image.repart.compression = {
+            enable = true;
+            algorithm = "zstd";
+          };
+          system.image.version = lib.mkForce "0-initial-image";
+        }
+      )
     ];
   };
 
@@ -74,15 +96,18 @@ let
 
   updateConfig = nixosConfig.extendModules {
     modules = [
-      {
-        image.repart.split = mkForce true;
-        image.repart.compression = {
-          enable = true;
-          algorithm = "zstd";
-        };
-        system.image.version = mkForce updateVersion;
-        boot.uki.version = mkForce updateVersion;
-      }
+      (
+        { lib, ... }:
+        {
+          image.repart.split = lib.mkForce true;
+          image.repart.compression = {
+            enable = true;
+            algorithm = "zstd";
+          };
+          system.image.version = lib.mkForce updateVersion;
+          boot.uki.version = lib.mkForce updateVersion;
+        }
+      )
     ];
   };
 
@@ -96,44 +121,38 @@ let
     installerBaseConfig.extendModules {
       modules = [
         (
-          { pkgs, lib, ... }:
           {
-            partitions.isInstaller = true;
+            pkgs,
+            lib,
+            ...
+          }:
+          {
+            # image.repart.enable = lib.mkForce false;
+            # systemd.sysupdate.enable = lib.mkForce false;
 
-            system.image.id = lib.mkForce initialConfig.config.system.image.id;
-            system.image.version = mkForce "installer";
+            # system.image.version = mkForce "mantle-installer-iso";
 
-            image.repart = {
-              split = false;
+            isoImage.compressImage = true;
 
-              compression = {
-                enable = true;
-                algorithm = "zstd";
-              };
+            isoImage.grubTheme = lib.mkForce null;
+            isoImage.forceTextMode = true;
 
-              partitions."60-payload" = {
-                repartConfig = {
-                  Type = "linux-generic";
-                  Label = "payload";
-                  Format = "erofs";
-                  Minimize = "best";
-                };
-                contents."/payload.zst".source = "${initialImage}/${baseName}.raw.zst";
-              };
-            };
+            isoImage.makeEfiBootable = lib.mkDefault true;
+            isoImage.makeUsbBootable = lib.mkDefault true;
+            isoImage.makeBiosBootable = lib.mkForce false;
 
-            fileSystems."/mnt/payload" = {
-              device = "/dev/disk/by-partlabel/payload";
-              fsType = "erofs";
-              options = [ "ro" ];
-              neededForBoot = false;
-            };
+            isoImage.contents = [
+              {
+                source = "${initialImage}/${baseName}.raw.zst";
+                target = "/payload.zst";
+              }
+            ];
 
             environment.systemPackages = [
               (mkInstallScript {
                 inherit pkgs;
                 name = "mantle-install-payload";
-                payload = "/mnt/payload/payload.zst";
+                payload = "/iso/payload.zst";
               })
             ];
           }
@@ -141,7 +160,7 @@ let
       ];
     };
 
-  installerImage = installerConfig.config.system.build.finalImage;
+  installerImage = installerConfig.config.system.build.isoImage;
   installerToplevel = installerConfig.config.system.build.toplevel;
 
   flashInitialImage =
@@ -161,7 +180,7 @@ let
     mkInstallScript {
       inherit pkgs;
       name = "flash-installer-image";
-      payload = "${installerImage}/${baseName}.raw.zst";
+      payload = "${installerImage}/iso/${baseName}.iso.zst";
     };
 
   updatePayload =
@@ -257,7 +276,14 @@ let
         updateImage
       ];
 
-      depsOf = drv: (drv.buildInputs or [ ]) ++ (drv.nativeBuildInputs or [ ]);
+      # depsOf = drv: (drv.buildInputs or [ ]) ++ (drv.nativeBuildInputs or [ ]);
+      depsOf =
+        drv:
+        let
+          rawDeps = (drv.buildInputs or [ ]) ++ (drv.nativeBuildInputs or [ ]);
+        in
+        pkgs.lib.filter (x: x != null && builtins.isAttrs x) rawDeps;
+
       mkEntry = drv: {
         inherit (drv) name;
         path = drv;

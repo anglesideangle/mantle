@@ -8,7 +8,7 @@ let
   sourcePrefix = config.image.repart.name;
 in
 {
-  config.systemd.sysupdate = lib.mkIf (cfg.enable && (!cfg.isInstaller)) {
+  config.systemd.sysupdate = lib.mkIf cfg.enable {
     enable = true;
 
     transfers = {

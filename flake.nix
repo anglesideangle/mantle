@@ -18,12 +18,11 @@
       pkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system});
     in
     {
-      lib.mkTools = import ./lib;
+      lib.init = import ./lib;
 
       nixosModules.default = import ./modules;
 
-      packages = forAllSystems (system: {
-      });
+      packages = forAllSystems (system: { });
 
       checks = forAllSystems (system: {
         modules = import ./tests {
@@ -42,40 +41,14 @@
       devShells = forAllSystems (system: {
         default = pkgsFor.${system}.mkShellNoCC {
           packages = with pkgsFor.${system}; [
-            lon
             nil
             nixd
-            rust-analyzer
             nixfmt
-            rustfmt
-            cargo
             self.formatter.${system}
           ];
         };
       });
 
-      formatter = forAllSystems (
-        system:
-        pkgsFor.${system}.treefmt.withConfig {
-          name = "project-format";
-
-          runtimeInputs = with pkgsFor.${system}; [
-            nixfmt
-            rustfmt
-          ];
-
-          settings = {
-            formatter.nix = {
-              command = "nixfmt";
-              includes = [ "*.nix" ];
-            };
-
-            formatter.rust = {
-              command = "rustfmt";
-              includes = [ "*.rs" ];
-            };
-          };
-        }
-      );
+      formatter = forAllSystems (system: pkgsFor.${system}.nixfmt-tree);
     };
 }

@@ -28,12 +28,17 @@ in
 
     # boot.initrd.systemd.storePaths = mkForce [ ];
 
+    boot.supportedFilesystems = mkDefault [
+      "erofs"
+      "ext4"
+    ];
+
     fileSystems = {
       "/" = {
         fsType = "tmpfs";
       };
 
-      "/var" = mkIf (!cfg.isInstaller) {
+      "/var" = {
         device = "/dev/disk/by-partlabel/${cfg.var.label}";
         fsType = cfg.var.format;
         neededForBoot = true;

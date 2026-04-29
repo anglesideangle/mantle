@@ -57,7 +57,7 @@
 
       packages = forAllSystems (
         system:
-        mantle.lib.mkTools {
+        mantle.lib.init {
           pkgs = pkgsFor.${system};
           nixosConfig = pi4SystemCross.${system};
           updateVersion = self.shortRev or "dev";
