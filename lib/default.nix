@@ -1,11 +1,16 @@
 let
   mkInstallScript =
-    { pkgs, payload }:
+    {
+      name,
+      pkgs,
+      payload,
+    }:
     pkgs.writeShellApplication {
-      name = "mantle-install";
+      inherit name;
       runtimeInputs = [
         pkgs.coreutils
         pkgs.util-linux
+        pkgs.zstd
       ];
       text = ''
         set -euo pipefail
@@ -35,13 +40,14 @@ let
             ;;
         esac
 
-        dd if="${payload}" of="$device" bs=64M conv=fsync status=progress
+        zstd -dc ${payload} | dd of="$device" bs=64M conv=fsync status=progress
       '';
     };
 in
 {
   pkgs,
   nixosConfig,
+  installerBaseConfig ? nixosConfig,
   updateVersion,
 }:
 let
@@ -55,43 +61,79 @@ let
       {
         image.repart.split = mkForce false;
         image.repart.compression = {
-          enable = mkForce false;
+          enable = true;
           algorithm = "zstd";
         };
-        system.image.version = mkForce "0-first-install";
+        system.image.version = mkForce "0-initial-image";
       }
     ];
   };
+
+  initialImage = initialConfig.config.system.build.finalImage;
+  initialToplevel = initialConfig.config.system.build.toplevel;
 
   updateConfig = nixosConfig.extendModules {
     modules = [
       {
         image.repart.split = mkForce true;
-        image.repart.compression.enable = mkForce true;
+        image.repart.compression = {
+          enable = true;
+          algorithm = "zstd";
+        };
         system.image.version = mkForce updateVersion;
         boot.uki.version = mkForce updateVersion;
       }
     ];
   };
 
-  initialImage = initialConfig.config.system.build.finalImage;
+  updateImage = updateConfig.config.system.build.finalImage;
+  updateToplevel = updateConfig.config.system.build.toplevel;
 
   installerConfig =
     let
       baseName = initialConfig.config.image.baseName;
     in
-    initialConfig.extendModules {
+    installerBaseConfig.extendModules {
       modules = [
         (
           { pkgs, lib, ... }:
           {
-            system.image.id = lib.mkForce "${initialConfig.config.system.image.id}-installer";
             partitions.isInstaller = true;
+
+            system.image.id = lib.mkForce initialConfig.config.system.image.id;
+            system.image.version = mkForce "installer";
+
+            image.repart = {
+              split = false;
+
+              compression = {
+                enable = true;
+                algorithm = "zstd";
+              };
+
+              partitions."60-payload" = {
+                repartConfig = {
+                  Type = "linux-generic";
+                  Label = "payload";
+                  Format = "erofs";
+                  Minimize = "best";
+                };
+                contents."/payload.zst".source = "${initialImage}/${baseName}.raw.zst";
+              };
+            };
+
+            fileSystems."/mnt/payload" = {
+              device = "/dev/disk/by-partlabel/payload";
+              fsType = "erofs";
+              options = [ "ro" ];
+              neededForBoot = false;
+            };
 
             environment.systemPackages = [
               (mkInstallScript {
                 inherit pkgs;
-                payload = "${initialImage}/${baseName}.raw";
+                name = "mantle-install-payload";
+                payload = "/mnt/payload/payload.zst";
               })
             ];
           }
@@ -100,6 +142,7 @@ let
     };
 
   installerImage = installerConfig.config.system.build.finalImage;
+  installerToplevel = installerConfig.config.system.build.toplevel;
 
   flashInitialImage =
     let
@@ -107,7 +150,8 @@ let
     in
     mkInstallScript {
       inherit pkgs;
-      payload = "${initialImage}/${baseName}.raw";
+      name = "flash-initial-image";
+      payload = "${initialImage}/${baseName}.raw.zst";
     };
 
   flashInstallerImage =
@@ -116,13 +160,13 @@ let
     in
     mkInstallScript {
       inherit pkgs;
-      payload = "${installerImage}/${baseName}.raw";
+      name = "flash-installer-image";
+      payload = "${installerImage}/${baseName}.raw.zst";
     };
 
   updatePayload =
     let
       baseName = updateConfig.config.image.baseName;
-      updateDrv = updateConfig.config.system.build.finalImage;
       ukiDrv = updateConfig.config.system.build.uki;
       ukiFile = updateConfig.config.system.boot.loader.ukiFile;
     in
@@ -133,13 +177,11 @@ let
       ''
         mkdir -p $out
         cp \
-          "${updateDrv}/${baseName}.store.raw.zst" \
-          "${updateDrv}/${baseName}.store-verity.raw.zst" \
+          "${updateImage}/${baseName}.store.raw.zst" \
+          "${updateImage}/${baseName}.store-verity.raw.zst" \
           $out
         zstd -1 "${ukiDrv}/${ukiFile}" -o "$out/${ukiFile}.zst"
       '';
-
-  overlayToplevel = updateConfig.config.system.build.toplevel;
 
   activateOverlay = pkgs.writeShellApplication {
     name = "activate-overlay";
@@ -191,23 +233,50 @@ let
 
       nix \
         --extra-experimental-features "nix-command flakes" \
-        copy --to "ssh://${hostUrl}:/var/nix/upper" "${overlayToplevel}"
+        copy --to "ssh://${hostUrl}:/var/nix/upper" "${updateToplevel}"
 
       ssh "${hostUrl}" '
         set -euo pipefail
         activate-overlay
-        ${overlayToplevel}/bin/switch-to-configuration test
+        ${updateToplevel}/bin/switch-to-configuration test
       ';
     '';
   };
+
+  cacheRoot =
+    let
+      toplevelDrvs = [
+        installerToplevel
+        initialToplevel
+        updateToplevel
+      ];
+
+      imageDrvs = [
+        installerImage
+        initialImage
+        updateImage
+      ];
+
+      depsOf = drv: (drv.buildInputs or [ ]) ++ (drv.nativeBuildInputs or [ ]);
+      mkEntry = drv: {
+        inherit (drv) name;
+        path = drv;
+      };
+    in
+    pkgs.linkFarm "mantle-cache-root" (
+      (map mkEntry toplevelDrvs) ++ (map mkEntry (builtins.concatLists (map depsOf imageDrvs)))
+    );
 in
 {
   inherit
-
     initialImage
+    initialToplevel
+
     installerImage
+    installerToplevel
+
     updatePayload
-    overlayToplevel
+    updateToplevel
 
     flashInitialImage
     flashInstallerImage
@@ -215,5 +284,7 @@ in
     deactivateOverlay
     deployUpdate
     deployOverlay
+
+    cacheRoot
     ;
 }

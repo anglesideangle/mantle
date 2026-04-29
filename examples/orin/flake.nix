@@ -116,8 +116,8 @@
 
                 partitions = {
                   enable = true;
-                  esp.size = "64M";
-                  store.size = "15G";
+                  esp.size = "256M";
+                  store.size = "10G";
                   var.size = "2G";
                 };
 

@@ -26,6 +26,8 @@ in
 
     system.switch.enable = mkDefault false; # TODO true for overlay
 
+    # boot.initrd.systemd.storePaths = mkForce [ ];
+
     fileSystems = {
       "/" = {
         fsType = "tmpfs";

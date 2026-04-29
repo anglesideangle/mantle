@@ -16,13 +16,12 @@ in
     "${modulesPath}/image/repart.nix"
   ];
 
-  config = mkIf cfg.enable {
-    # /usr is read-only in this image layout.
-    # Skip creating /usr/bin/env in both initrd switch-root and activation.
-    environment.usrbinenv = mkForce null;
-    system.activationScripts.usrbinenv = mkForce "";
-
-    image.repart = {
+  config.image.repart =
+    let
+      efiArch = config.nixpkgs.hostPlatform.efiArch;
+      bootLocation = "/EFI/BOOT/BOOT${lib.toUpper efiArch}.EFI";
+    in
+    mkIf cfg.enable {
       name = config.system.image.id;
 
       verityStore = {
@@ -32,45 +31,38 @@ in
           store-verity = cfg.store-verity.id;
           store = cfg.store.id;
         };
+        ukiPath =
+          if cfg.isInstaller then
+            # no need for a bootloader or multiple generations in the installer image
+            # this tells the verityStore module to put the uki uefi stub at the bootloader path
+            bootLocation
+          else
+            # properly place the uki for it to be read by systemd-boot
+            "/EFI/Linux/${config.system.boot.loader.ukiFile}";
       };
 
       partitions = mkMerge [
         {
-          ${cfg.esp.id} =
-            let
-              inherit (pkgs.stdenv.hostPlatform) efiArch;
-            in
-            {
-              # image.repart.verityStore already handles /EFI/Linux/${ukiFile}
-              contents."/EFI/BOOT/BOOT${lib.toUpper efiArch}.EFI".source =
-                "${pkgs.systemd}/lib/systemd/boot/efi/systemd-boot${efiArch}.efi";
-              repartConfig = {
-                Type = "esp";
-                Label = "boot";
-                Format = cfg.esp.format;
-                SizeMinBytes = cfg.esp.size;
-                SplitName = "-";
-              };
-            };
+          ${cfg.esp.id}.repartConfig = {
+            Type = "esp";
+            Label = "boot";
+            Format = cfg.esp.format;
+            SplitName = "-";
+            # Minimize = "off";
+            SizeMinBytes = cfg.esp.size;
+            SizeMaxBytes = cfg.esp.size;
+          };
 
           ${cfg.store.id} = {
             storePaths = [ config.system.build.toplevel ];
-            # nixStorePrefix = "/";
-            repartConfig = mkMerge [
-              {
-                Label = store-label;
-                Format = cfg.store.format;
-                ReadOnly = "yes";
-                SplitName = "store";
-              }
-              (mkIf (!cfg.isInstaller) {
-                SizeMinBytes = cfg.store.size;
-                SizeMaxBytes = cfg.store.size;
-              })
-              (mkIf (cfg.isInstaller) {
-                Minimize = "best";
-              })
-            ];
+            repartConfig = {
+              Label = store-label;
+              Format = cfg.store.format;
+              ReadOnly = "yes";
+              SplitName = "store";
+              SizeMinBytes = cfg.store.size;
+              SizeMaxBytes = cfg.store.size;
+            };
           };
 
           ${cfg.store-verity.id}.repartConfig = {
@@ -78,7 +70,22 @@ in
             SplitName = "store-verity";
           };
         }
+
+        (mkIf cfg.isInstaller {
+          ${cfg.store.id}.repartConfig.Minimize = "best";
+        })
+
         (mkIf (!cfg.isInstaller) {
+          # a bootloader is needed for a/b updates
+          ${cfg.esp.id}.contents.${bootLocation}.source =
+            "${pkgs.systemd}/lib/systemd/boot/efi/systemd-boot${efiArch}.efi";
+
+          # store needs has a static size for a/b updates
+          # ${cfg.store.id}.repartConfig = {
+          #   SizeMinBytes = cfg.store.size;
+          #   SizeMaxBytes = cfg.store.size;
+          # };
+
           ${cfg.empty-store.id}.repartConfig = {
             inherit (config.image.repart.partitions.${cfg.store.id}.repartConfig)
               Type
@@ -112,5 +119,4 @@ in
         })
       ];
     };
-  };
 }
