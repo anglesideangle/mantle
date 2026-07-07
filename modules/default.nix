@@ -74,7 +74,6 @@ with lib;
     };
 
     var = {
-      # enable = mkEnableOption "var";
       id = mkOption {
         type = types.str;
         default = "50-var";

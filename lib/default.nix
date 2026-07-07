@@ -69,14 +69,10 @@ in
   updateVersion,
 }:
 let
-  # inherit (pkgs) lib;
-  # inherit (lib) mkForce;
-
   hostUrl = "root@${nixosConfig.config.networking.hostName}";
 
   initialConfig = nixosConfig.extendModules {
     modules = [
-      # "../modules/default.nix"
       (
         { lib, ... }:
         {
@@ -105,7 +101,7 @@ let
             algorithm = "zstd";
           };
           system.image.version = lib.mkForce updateVersion;
-          boot.uki.version = lib.mkForce updateVersion;
+          # boot.uki.version = lib.mkForce updateVersion;
         }
       )
     ];
@@ -127,11 +123,6 @@ let
             ...
           }:
           {
-            # image.repart.enable = lib.mkForce false;
-            # systemd.sysupdate.enable = lib.mkForce false;
-
-            # system.image.version = mkForce "mantle-installer-iso";
-
             isoImage.compressImage = true;
 
             isoImage.grubTheme = lib.mkForce null;
@@ -226,6 +217,18 @@ let
     '';
   };
 
+  clearOverlay = pkgs.writeShellApplication {
+    name = "clear-overlay";
+    runtimeInputs = with pkgs; [
+      openssh
+    ];
+    text = ''
+      set -euo pipefail
+
+      ssh "${hostUrl}" "rm -rf /var/nix/upper"
+    '';
+  };
+
   deployUpdate = pkgs.writeShellApplication {
     name = "deploy-update";
     runtimeInputs = with pkgs; [
@@ -237,7 +240,12 @@ let
 
       scp -r "${updatePayload}" "${hostUrl}:/var/updates/"
 
-      ssh "${hostUrl}" "systemd-sysupdate update --reboot"
+      ssh "${hostUrl}" '
+        set -eu pipefail
+        systemd-sysupdate update
+        rm -rf /var/nix/upper
+        systemctl reboot
+      '
     '';
   };
 
@@ -271,18 +279,18 @@ let
       ];
 
       imageDrvs = [
-        installerImage
+        # installerImage
         initialImage
         updateImage
       ];
 
-      # depsOf = drv: (drv.buildInputs or [ ]) ++ (drv.nativeBuildInputs or [ ]);
-      depsOf =
-        drv:
-        let
-          rawDeps = (drv.buildInputs or [ ]) ++ (drv.nativeBuildInputs or [ ]);
-        in
-        pkgs.lib.filter (x: x != null && builtins.isAttrs x) rawDeps;
+      depsOf = drv: (drv.buildInputs or [ ]) ++ (drv.nativeBuildInputs or [ ]);
+      # depsOf =
+      #   drv:
+      #   let
+      #     rawDeps = (drv.buildInputs or [ ]) ++ (drv.nativeBuildInputs or [ ]);
+      #   in
+      #   pkgs.lib.filter (x: x != null && builtins.isAttrs x) rawDeps;
 
       mkEntry = drv: {
         inherit (drv) name;
@@ -308,6 +316,7 @@ in
     flashInstallerImage
     activateOverlay
     deactivateOverlay
+    clearOverlay
     deployUpdate
     deployOverlay
 
