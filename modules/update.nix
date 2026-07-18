@@ -20,10 +20,8 @@ in
         };
         Target = {
           Type = "partition";
-          Path = "auto"; # TODO breaks?
-          # Path = "/usr/nix/store";
+          Path = "auto";
           MatchPattern = [ "${storePrefix}_@v" ];
-          # MatchPartitionType = "";
           InstancesMax = 2;
           ReadOnly = "yes";
         };
@@ -49,7 +47,12 @@ in
 
       "30-uki" = {
         Source = {
-          MatchPattern = [ "${config.boot.uki.name}_@v.efi.zst" ];
+          # The UKI filename embeds the systemd-boot try counter as a
+          # `+<tries>` suffix (e.g. `name_2+2.efi`), so the transfer's
+          # match pattern must include the `@t` (tries) placeholder after
+          # the `@v` (version) one. Without this the payload UKI would
+          # never match and the A/B update would silently fail.
+          MatchPattern = [ "${config.boot.uki.name}_@v+@t.efi.zst" ];
           Path = "/var/updates/";
           Type = "regular-file";
         };
@@ -57,7 +60,7 @@ in
           Type = "regular-file";
           Path = "/EFI/Linux";
           PathRelativeTo = "boot";
-          MatchPattern = [ "${config.boot.uki.name}_@v.efi" ];
+          MatchPattern = [ "${config.boot.uki.name}_@v+@t.efi" ];
           Mode = "0444";
           InstancesMax = 2;
         };

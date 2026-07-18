@@ -17,10 +17,6 @@ with lib;
     enable = mkEnableOption "partitioning";
 
     esp = {
-      id = mkOption {
-        type = types.str;
-        default = "00-esp";
-      };
       label = mkOption {
         type = types.str;
         default = "boot";
@@ -35,10 +31,6 @@ with lib;
     };
 
     store-verity = {
-      id = mkOption {
-        type = types.str;
-        default = "10-store-verity";
-      };
       label-prefix = mkOption {
         type = types.str;
         default = "store-verity";
@@ -46,10 +38,6 @@ with lib;
     };
 
     store = {
-      id = mkOption {
-        type = types.str;
-        default = "20-store";
-      };
       label-prefix = mkOption {
         type = types.str;
         default = "store";
@@ -63,21 +51,7 @@ with lib;
       };
     };
 
-    empty-store-verity.id = mkOption {
-      type = types.str;
-      default = "30-empty-store-verity";
-    };
-
-    empty-store.id = mkOption {
-      type = types.str;
-      default = "40-empty-store";
-    };
-
     var = {
-      id = mkOption {
-        type = types.str;
-        default = "50-var";
-      };
       label = mkOption {
         type = types.str;
         default = "persistent";

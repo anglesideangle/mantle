@@ -23,18 +23,18 @@
       ];
       forAllSystems = nixpkgs.lib.genAttrs allSystems;
       pkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system});
-
-      pi4SystemCross = forAllSystems (
-        buildPlatform:
-        nixpkgs.lib.nixosSystem {
+    in
+    {
+      packages = forAllSystems (
+        system:
+        mantle.lib.init {
+          pkgs = pkgsFor.${system};
           modules = [
-            mantle.nixosModules.default
             nixos-hardware.nixosModules.raspberry-pi-4
             {
               nixpkgs = {
-                inherit buildPlatform;
+                buildPlatform = system;
                 hostPlatform = "aarch64-linux";
-                # hostPlatform = "x86_64-linux";
               };
 
               partitions = {
@@ -45,22 +45,11 @@
               };
 
               system.image.id = "imageid";
+              system.image.version = self.shortRev or "dev";
               boot.uki.name = "ukiname";
               networking.hostName = "mantle-target";
             }
           ];
-        }
-      );
-    in
-    {
-      # nixosConfigurations.default = pi4SystemCross."x86_64-linux";
-
-      packages = forAllSystems (
-        system:
-        mantle.lib.init {
-          pkgs = pkgsFor.${system};
-          nixosConfig = pi4SystemCross.${system};
-          updateVersion = self.shortRev or "dev";
         }
       );
 
@@ -73,11 +62,12 @@
           };
         in
         {
-          flashInstallImage = mkApp self.packages.${system}.flashInstallImage;
-          activateOverlay = mkApp self.packages.${system}.activateOverlay;
-          deactivateOverlay = mkApp self.packages.${system}.deactivateOverlay;
-          deployUpdate = mkApp self.packages.${system}.deployUpdate;
-          deployOverlay = mkApp self.packages.${system}.deployOverlay;
+          flash-to-device = mkApp self.packages.${system}.flash-to-device;
+          flash-installer-to-device = mkApp self.packages.${system}.flash-installer-to-device;
+          activate-overlay = mkApp self.packages.${system}.activate-overlay;
+          deactivate-overlay = mkApp self.packages.${system}.deactivate-overlay;
+          deploy-update = mkApp self.packages.${system}.deploy-update;
+          deploy-overlay = mkApp self.packages.${system}.deploy-overlay;
         }
       );
     };

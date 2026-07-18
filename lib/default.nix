@@ -1,245 +1,198 @@
-let
-  mkInstallScript =
-    {
-      name,
-      pkgs,
-      payload,
-    }:
-    pkgs.writeShellApplication {
-      inherit name;
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.util-linux
-        pkgs.zstd
-      ];
-      text = ''
-        set -euo pipefail
-
-        if [ "$#" -ne 2 ] || [ "$1" != "--device" ]; then
-          echo "usage: $0 --device /dev/<disk>" >&2
-          exit 2
-        fi
-
-        device="$2"
-
-        if [ ! -b "$device" ]; then
-          echo "$device is not a block device" >&2
-          exit 2
-        fi
-
-        echo "About to flash ${payload} to $device."
-        printf "This will erase all data on %s. Continue? [y/N] " "$device"
-        read -r answer
-
-        case "$answer" in
-          y|Y|yes|YES)
-            ;;
-          *)
-            echo "Aborted"
-            exit 1
-            ;;
-        esac
-
-        zstd -dc ${payload} | dd of="$device" bs=64M conv=fsync status=progress
-      '';
-    };
-in
 {
   pkgs,
-  nixosConfig,
-  installerBaseConfig ? (
-    nixosConfig.extendModules {
-      modules = [
-        (
-          {
-            config,
-            lib,
-            modulesPath,
-            ...
-          }:
-          {
-            imports = [ "${modulesPath}/installer/cd-dvd/iso-image.nix" ];
-            partitions.enable = lib.mkForce false;
-            image.baseName = lib.mkForce "${config.system.image.id}-iso-${updateVersion}";
-          }
-        )
-      ];
-    }
-  ),
-  updateVersion,
+  nixosModule,
+  modules,
+  specialArgs ? { },
+  nixosSystemArgs ? { },
 }:
 let
-  hostUrl = "root@${nixosConfig.config.networking.hostName}";
+  inherit (pkgs) lib;
 
-  initialConfig = nixosConfig.extendModules {
-    modules = [
+  baseConfig =
+    # `nixpkgs.lib.nixosSystem` (the flake-level attr) is not available on
+    # `pkgs.lib` (the raw lib re-exported inside `legacyPackages`), so call
+    # `eval-config.nix` directly. This is exactly what `nixosSystem`
+    # wraps (`lib = final; system = null; modules = ...`) and keeps
+    # lib.init callable with a plain `pkgs` argument, as the example
+    # flakes and the test suite do.
+    import "${pkgs.path}/nixos/lib/eval-config.nix"
       (
-        { lib, ... }:
         {
-          image.repart.split = lib.mkForce false;
-          image.repart.compression = {
-            enable = true;
-            algorithm = "zstd";
-          };
-          system.image.version = lib.mkForce "0-initial-image";
+          lib = pkgs.lib;
+          # Let `nixpkgs.hostPlatform`/`nixpkgs.system` be set modularly.
+          system = null;
+          modules = [ nixosModule ] ++ modules;
+          inherit specialArgs;
         }
-      )
+        // nixosSystemArgs
+      );
+
+  # The image version is sourced from the evaluated system configuration so
+  # that callers drive it via `system.image.version` rather than a separate
+  # argument. This keeps the version embedded in partition labels, the
+  # update payload name, and os-release consistent with the booted image.
+  version = baseConfig.config.system.image.version;
+
+  # TODO utils taking in config _might_ require re-evaluating the module system
+  utils = import "${pkgs.path}/nixos/lib/utils.nix" {
+    inherit (pkgs) lib;
+    inherit pkgs;
+    config = baseConfig.config;
+  };
+
+  mkInstaller = import ./mk-installer.nix {
+    inherit lib pkgs utils;
+  };
+
+  copyFromSplit = cfg: partition: {
+    repartConfig = removeAttrs partition.repartConfig [ "Format" ] // {
+      CopyBlocks = "${cfg.config.system.build.image}/${cfg.config.image.baseName}.${partition.repartConfig.SplitName}.raw";
+    };
+  };
+
+  partitions = import ./mk-partitions.nix {
+    inherit (baseConfig) config;
+    inherit pkgs lib;
+  };
+
+  fullConfig = baseConfig.extendModules {
+    modules = [
+      {
+        image.repart.partitions = lib.mkForce {
+          "00-esp" = partitions.esp;
+          "10-store-verity" = partitions.store-verity;
+          "11-store" = partitions.store;
+          "20-store-B-verity" = partitions.empty-store-verity;
+          "21-store-B" = partitions.empty-store;
+          "30-var" = partitions.var;
+        };
+      }
     ];
   };
 
-  initialImage = initialConfig.config.system.build.finalImage;
-  initialToplevel = initialConfig.config.system.build.toplevel;
+  fullImage = fullConfig.config.system.build.image;
 
-  updateConfig = nixosConfig.extendModules {
+  # The update image carries only the store + store-verity partitions
+  # that get shipped as the A/B update payload (the verity-store split
+  # files). The ESP is kept too: the `image.repart.verityStore` final
+  # image build injects the v2 UKI into the ESP and *requires* an ESP
+  # partition to be present, so dropping it here makes the image build
+  # fail. `updatePayload` below only ships store + store-verity + the
+  # separate UKI, so the extra ESP split file is simply unused.
+  updateConfig = baseConfig.extendModules {
     modules = [
-      (
-        { lib, ... }:
-        {
-          image.repart.split = lib.mkForce true;
-          image.repart.compression = {
-            enable = true;
-            algorithm = "zstd";
-          };
-          system.image.version = lib.mkForce updateVersion;
-          # boot.uki.version = lib.mkForce updateVersion;
-        }
-      )
+      {
+        image.repart.partitions = lib.mkForce {
+          "00-esp" = partitions.esp;
+          "10-store-verity" = partitions.store-verity;
+          "11-store" = partitions.store;
+        };
+      }
     ];
   };
 
-  updateImage = updateConfig.config.system.build.finalImage;
-  updateToplevel = updateConfig.config.system.build.toplevel;
+  updateImage = updateConfig.config.system.build.image;
 
-  installerConfig =
-    let
-      baseName = initialConfig.config.image.baseName;
-    in
-    installerBaseConfig.extendModules {
-      modules = [
-        (
-          {
-            pkgs,
-            lib,
-            ...
-          }:
-          {
-            isoImage.compressImage = true;
+  installerConfig = baseConfig.extendModules {
+    modules = [
+      {
+        environment.systemPackages = [
+          (mkInstaller "mantle-install" {
+            "00-esp" = partitions.esp-installer-copy;
+            "10-store-verity" = partitions.store-verity-copy;
+            "11-store" = partitions.store-installer-copy;
+          })
+        ];
 
-            isoImage.grubTheme = lib.mkForce null;
-            isoImage.forceTextMode = true;
+        image.repart = {
+          name = "${baseConfig.config.system.image.id}-installer";
+          partitions = lib.mkForce {
+            "00-esp" = partitions.esp;
+            "10-store-verity" = partitions.store-verity;
+            "11-store" = partitions.store;
+            "20-installer" = partitions.var-installer;
+          };
+        };
+      }
+    ];
+  };
 
-            isoImage.makeEfiBootable = lib.mkDefault true;
-            isoImage.makeUsbBootable = lib.mkDefault true;
-            isoImage.makeBiosBootable = lib.mkForce false;
+  installerImage = installerConfig.config.system.build.image;
 
-            isoImage.contents = [
-              {
-                source = "${initialImage}/${baseName}.raw.zst";
-                target = "/payload.zst";
-              }
-            ];
+  topLevel = baseConfig.config.system.build.toplevel;
+  ukiDrv = updateConfig.config.system.build.uki;
+  ukiFile = updateConfig.config.system.boot.loader.ukiFile;
 
-            environment.systemPackages = [
-              (mkInstallScript {
-                inherit pkgs;
-                name = "mantle-install-payload";
-                payload = "/iso/payload.zst";
-              })
-            ];
-          }
-        )
-      ];
-    };
+  hostUrl = "root@${baseConfig.config.networking.hostName}";
 
-  installerImage = installerConfig.config.system.build.isoImage;
-  installerToplevel = installerConfig.config.system.build.toplevel;
+  flash-to-device = mkInstaller "flash-to-device" {
+    "00-esp" = copyFromSplit fullConfig partitions.esp;
+    "10-store-verity" = copyFromSplit fullConfig partitions.store-verity;
+    "11-store" = copyFromSplit fullConfig partitions.store;
+    "20-store-B-verity" = partitions.empty-store-verity;
+    "21-store-B" = partitions.empty-store;
+    "30-var" = partitions.var;
+  };
 
-  flashInitialImage =
-    let
-      baseName = initialConfig.config.image.baseName;
-    in
-    mkInstallScript {
-      inherit pkgs;
-      name = "flash-initial-image";
-      payload = "${initialImage}/${baseName}.raw.zst";
-    };
-
-  flashInstallerImage =
-    let
-      baseName = installerConfig.config.image.baseName;
-    in
-    mkInstallScript {
-      inherit pkgs;
-      name = "flash-installer-image";
-      payload = "${installerImage}/iso/${baseName}.iso.zst";
-    };
+  flash-installer-to-device = mkInstaller "flash-installer-to-device" {
+    "00-esp" = copyFromSplit installerConfig partitions.esp;
+    "10-store-verity" = copyFromSplit installerConfig partitions.store-verity;
+    "11-store" = copyFromSplit installerConfig partitions.store;
+  };
 
   updatePayload =
     let
-      baseName = updateConfig.config.image.baseName;
-      ukiDrv = updateConfig.config.system.build.uki;
-      ukiFile = updateConfig.config.system.boot.loader.ukiFile;
+      updateBase = updateConfig.config.image.baseName;
     in
-    pkgs.runCommand "update-${updateVersion}"
+    pkgs.runCommand "update-${version}"
       {
         nativeBuildInputs = [ pkgs.zstd ];
       }
       ''
         mkdir -p $out
         cp \
-          "${updateImage}/${baseName}.store.raw.zst" \
-          "${updateImage}/${baseName}.store-verity.raw.zst" \
+          "${updateImage}/${updateBase}.store.raw.zst" \
+          "${updateImage}/${updateBase}.store-verity.raw.zst" \
           $out
         zstd -1 "${ukiDrv}/${ukiFile}" -o "$out/${ukiFile}.zst"
       '';
 
-  activateOverlay = pkgs.writeShellApplication {
+  activate-overlay = pkgs.writeShellApplication {
     name = "activate-overlay";
-    runtimeInputs = with pkgs; [
-      openssh
-    ];
+    runtimeInputs = [ pkgs.openssh ];
     text = ''
       set -euo pipefail
-
-      ssh "${hostUrl}" "activate-overlay";
+      ssh "${hostUrl}" "activate-overlay"
     '';
   };
 
-  deactivateOverlay = pkgs.writeShellApplication {
+  deactivate-overlay = pkgs.writeShellApplication {
     name = "deactivate-overlay";
-    runtimeInputs = with pkgs; [
-      openssh
-    ];
+    runtimeInputs = [ pkgs.openssh ];
     text = ''
       set -euo pipefail
-
       ssh "${hostUrl}" "deactivate-overlay"
     '';
   };
 
-  clearOverlay = pkgs.writeShellApplication {
+  clear-overlay = pkgs.writeShellApplication {
     name = "clear-overlay";
-    runtimeInputs = with pkgs; [
-      openssh
-    ];
+    runtimeInputs = [ pkgs.openssh ];
     text = ''
       set -euo pipefail
-
       ssh "${hostUrl}" "rm -rf /var/nix/upper"
     '';
   };
 
-  deployUpdate = pkgs.writeShellApplication {
+  deploy-update = pkgs.writeShellApplication {
     name = "deploy-update";
-    runtimeInputs = with pkgs; [
-      coreutils
-      openssh
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.openssh
     ];
     text = ''
       set -euo pipefail
-
       scp -r "${updatePayload}" "${hostUrl}:/var/updates/"
-
       ssh "${hostUrl}" '
         set -eu pipefail
         systemd-sysupdate update
@@ -249,77 +202,42 @@ let
     '';
   };
 
-  deployOverlay = pkgs.writeShellApplication {
+  deploy-overlay = pkgs.writeShellApplication {
     name = "deploy-overlay";
-    runtimeInputs = with pkgs; [
-      nix
-      openssh
+    runtimeInputs = [
+      pkgs.nix
+      pkgs.openssh
     ];
     text = ''
       set -euo pipefail
-
       nix \
         --extra-experimental-features "nix-command flakes" \
-        copy --to "ssh://${hostUrl}:/var/nix/upper" "${updateToplevel}"
-
+        copy --to "ssh://${hostUrl}:/var/nix/upper" "${topLevel}"
       ssh "${hostUrl}" '
         set -euo pipefail
         activate-overlay
-        ${updateToplevel}/bin/switch-to-configuration test
-      ';
+        ${topLevel}/bin/switch-to-configuration test
+      '
     '';
   };
 
-  cacheRoot =
-    let
-      toplevelDrvs = [
-        installerToplevel
-        initialToplevel
-        updateToplevel
-      ];
-
-      imageDrvs = [
-        # installerImage
-        initialImage
-        updateImage
-      ];
-
-      depsOf = drv: (drv.buildInputs or [ ]) ++ (drv.nativeBuildInputs or [ ]);
-      # depsOf =
-      #   drv:
-      #   let
-      #     rawDeps = (drv.buildInputs or [ ]) ++ (drv.nativeBuildInputs or [ ]);
-      #   in
-      #   pkgs.lib.filter (x: x != null && builtins.isAttrs x) rawDeps;
-
-      mkEntry = drv: {
-        inherit (drv) name;
-        path = drv;
-      };
-    in
-    pkgs.linkFarm "mantle-cache-root" (
-      (map mkEntry toplevelDrvs) ++ (map mkEntry (builtins.concatLists (map depsOf imageDrvs)))
-    );
 in
 {
   inherit
-    initialImage
-    initialToplevel
-
+    fullImage
     installerImage
-    installerToplevel
+    updateImage
 
     updatePayload
-    updateToplevel
+    topLevel
 
-    flashInitialImage
-    flashInstallerImage
-    activateOverlay
-    deactivateOverlay
-    clearOverlay
-    deployUpdate
-    deployOverlay
+    flash-to-device
+    flash-installer-to-device
 
-    cacheRoot
+    activate-overlay
+    deactivate-overlay
+    clear-overlay
+    deploy-update
+    deploy-overlay
     ;
 }

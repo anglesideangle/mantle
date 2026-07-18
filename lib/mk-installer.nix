@@ -1,18 +1,5 @@
-# Self-contained installer command factory.
-#
-# Builds a shell script (`name`) that writes the given `partitions`' repart
-# definitions to a temp dir and runs `systemd-repart --empty=force` against a
-# target disk, copying/extending partitions as declared.
-#
-# The resulting script has no closure dependency: the repart definitions are
-# inlined into the script via heredocs, so it can be shipped on its own
-# partition and 1:1 copied (e.g. with `CopyBlocks=auto`) onto an installer
-# image, or run directly from a build host to flash a target disk.
-#
-# Each partition in `partitions` is an attrset with a `repartConfig` attribute
-# (an attrset of repart.d settings). The attrset KEY becomes the on-disk
-# definition filename, so it controls partition ordering (systemd-repart sorts
-# definition files by name — use `00-`/`10-`/... prefixes to fix the GPT order).
+# An interactive installer command that uses `systemd-repart` to copy the
+# provided partitions to a user-specified target.
 {
   lib,
   pkgs,
@@ -35,25 +22,69 @@ in
 pkgs.writeShellScriptBin name ''
   set -euo pipefail
 
-  target="''${1:?usage: ${name} <target-disk>}"
+  opt_assume_yes=
+
+  usage() {
+    cat <<USAGE
+usage: ${name} [-y|--yes] <target-disk>
+
+  -y, --yes   Assume "yes" to the confirmation prompt and run
+              non-interactively. Useful for automated/offline installs.
+USAGE
+  }
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -y|--yes)
+        opt_assume_yes=1
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        echo "unknown option: $1" >&2
+        usage >&2
+        exit 2
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [ $# -ne 1 ]; then
+    usage >&2
+    exit 2
+  fi
+  target="$1"
 
   if [ ! -b "$target" ]; then
     echo "$target is not a block device" >&2
     exit 2
   fi
 
-  echo "About to install to $target."
-  printf "This will erase all data on %s. Continue? [y/N] " "$target"
-  read -r answer
+  if [ -z "$opt_assume_yes" ]; then
+    echo "About to install to $target."
+    printf "This will erase all data on %s. Continue? [y/N] " "$target"
+    read -r answer
 
-  case "$answer" in
-    y|Y|yes|YES)
-      ;;
-    *)
-      echo "Aborted"
-      exit 1
-      ;;
-  esac
+    case "$answer" in
+      y|Y|yes|YES)
+        ;;
+      *)
+        echo "Aborted"
+        exit 1
+        ;;
+    esac
+  else
+    echo "About to install to $target (--yes, skipping confirmation)."
+  fi
 
   defs=$(mktemp -d)
   trap 'rm -rf "$defs"' EXIT
