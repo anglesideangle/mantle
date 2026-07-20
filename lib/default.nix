@@ -1,148 +1,146 @@
-{
-  pkgs,
-  nixosModule,
-  modules,
-  specialArgs ? { },
-  nixosSystemArgs ? { },
-}:
+mantleModule: pkgs: args:
 let
-  inherit (pkgs) lib;
-
-  baseConfig =
-    # `nixpkgs.lib.nixosSystem` (the flake-level attr) is not available on
-    # `pkgs.lib` (the raw lib re-exported inside `legacyPackages`), so call
-    # `eval-config.nix` directly. This is exactly what `nixosSystem`
-    # wraps (`lib = final; system = null; modules = ...`) and keeps
-    # lib.init callable with a plain `pkgs` argument, as the example
-    # flakes and the test suite do.
-    import "${pkgs.path}/nixos/lib/eval-config.nix"
-      (
-        {
-          lib = pkgs.lib;
-          # Let `nixpkgs.hostPlatform`/`nixpkgs.system` be set modularly.
-          system = null;
-          modules = [ nixosModule ] ++ modules;
-          inherit specialArgs;
-        }
-        // nixosSystemArgs
-      );
-
-  # The image version is sourced from the evaluated system configuration so
-  # that callers drive it via `system.image.version` rather than a separate
-  # argument. This keeps the version embedded in partition labels, the
-  # update payload name, and os-release consistent with the booted image.
-  version = baseConfig.config.system.image.version;
-
-  # TODO utils taking in config _might_ require re-evaluating the module system
-  utils = import "${pkgs.path}/nixos/lib/utils.nix" {
-    inherit (pkgs) lib;
-    inherit pkgs;
-    config = baseConfig.config;
-  };
-
-  mkInstaller = import ./mk-installer.nix {
-    inherit lib pkgs utils;
-  };
-
-  copyFromSplit = cfg: partition: {
+  copyFromSplit = config: partition: {
     repartConfig = removeAttrs partition.repartConfig [ "Format" ] // {
-      CopyBlocks = "${cfg.config.system.build.image}/${cfg.config.image.baseName}.${partition.repartConfig.SplitName}.raw";
+      CopyBlocks = "${config.system.build.image}/${config.image.baseName}.${partition.repartConfig.SplitName}.raw";
     };
   };
 
-  partitions = import ./mk-partitions.nix {
-    inherit (baseConfig) config;
-    inherit pkgs lib;
-  };
+  baseConfig = import "${pkgs.path}/nixos/lib/eval-config.nix" (
+    {
+      system = null;
+      # inherit (pkgs) lib;
+      modules = (args.modules or [ ]) ++ [ mantleModule ];
+    }
+    // removeAttrs args [ "modules" ]
+  );
 
   fullConfig = baseConfig.extendModules {
     modules = [
-      {
-        image.repart.partitions = lib.mkForce {
-          "00-esp" = partitions.esp;
-          "10-store-verity" = partitions.store-verity;
-          "11-store" = partitions.store;
-          "20-store-B-verity" = partitions.empty-store-verity;
-          "21-store-B" = partitions.empty-store;
-          "30-var" = partitions.var;
-        };
-      }
+      (
+        { config, lib, ... }:
+        let
+          defs = config.system.build._partitionDefs;
+        in
+        {
+          image.repart.partitions = lib.mkForce {
+            "00-esp" = defs.esp;
+            "10-store-verity" = defs.store-verity;
+            "11-store" = defs.store;
+            "20-store-B-verity" = defs.empty-store-verity;
+            "21-store-B" = defs.empty-store;
+            "30-var" = defs.var;
+          };
+        }
+      )
     ];
   };
 
-  fullImage = fullConfig.config.system.build.image;
-
-  # The update image carries only the store + store-verity partitions
-  # that get shipped as the A/B update payload (the verity-store split
-  # files). The ESP is kept too: the `image.repart.verityStore` final
-  # image build injects the v2 UKI into the ESP and *requires* an ESP
-  # partition to be present, so dropping it here makes the image build
-  # fail. `updatePayload` below only ships store + store-verity + the
-  # separate UKI, so the extra ESP split file is simply unused.
   updateConfig = baseConfig.extendModules {
     modules = [
-      {
-        image.repart.partitions = lib.mkForce {
-          "00-esp" = partitions.esp;
-          "10-store-verity" = partitions.store-verity;
-          "11-store" = partitions.store;
-        };
-      }
+      (
+        { config, lib, ... }:
+        let
+          defs = config.system.build._partitionDefs;
+        in
+        {
+          image.repart.partitions = lib.mkForce {
+            "00-esp" = defs.esp;
+            "10-store-verity" = defs.store-verity;
+            "11-store" = defs.store;
+          };
+        }
+      )
     ];
   };
-
-  updateImage = updateConfig.config.system.build.image;
 
   installerConfig = baseConfig.extendModules {
     modules = [
-      {
-        environment.systemPackages = [
-          (mkInstaller "mantle-install" {
-            "00-esp" = partitions.esp-installer-copy;
-            "10-store-verity" = partitions.store-verity-copy;
-            "11-store" = partitions.store-installer-copy;
-          })
-        ];
+      (
+        { config, lib, ... }:
+        let
+          defs = config.system.build._partitionDefs;
+          mkInstaller = config.system.build._mkInstaller;
+        in
+        {
+          environment.systemPackages = [
+            (mkInstaller "mantle-install" {
+              "00-esp" = defs.esp-installer-copy;
+              "10-store-verity" = defs.store-verity-copy;
+              "11-store" = defs.store-installer-copy;
+            })
+          ];
 
-        image.repart = {
-          name = "${baseConfig.config.system.image.id}-installer";
-          partitions = lib.mkForce {
-            "00-esp" = partitions.esp;
-            "10-store-verity" = partitions.store-verity;
-            "11-store" = partitions.store;
-            "20-installer" = partitions.var-installer;
+          image.repart = {
+            name = "${config.system.image.id}-installer";
+            partitions = lib.mkForce {
+              "00-esp" = defs.esp;
+              "10-store-verity" = defs.store-verity;
+              "11-store" = defs.store;
+              "20-installer" = defs.var-installer;
+            };
           };
-        };
-      }
+        }
+      )
     ];
   };
 
-  installerImage = installerConfig.config.system.build.image;
+  hostUrl = "root@${updateConfig.config.networking.hostName}";
 
-  topLevel = baseConfig.config.system.build.toplevel;
-  ukiDrv = updateConfig.config.system.build.uki;
-  ukiFile = updateConfig.config.system.boot.loader.ukiFile;
+  flash-to-device =
+    let
+      cfg = fullConfig.extendModules {
+        modules = [
+          (
+            { config, lib, ... }:
+            let
+              defs = config.system.build._partitionDefs;
+              mkInstaller = config.system.build._mkInstaller;
+            in
+            {
+              system.build._flash-to-device = mkInstaller "flash-to-device" {
+                "00-esp" = copyFromSplit config defs.esp;
+                "10-store-verity" = copyFromSplit config defs.store-verity;
+                "11-store" = copyFromSplit config defs.store;
+                "20-store-B-verity" = defs.empty-store-verity;
+                "21-store-B" = defs.empty-store;
+                "30-var" = defs.var;
+              };
+            }
+          )
+        ];
+      };
+    in
+    cfg.config.system.build._flash-to-device;
 
-  hostUrl = "root@${baseConfig.config.networking.hostName}";
-
-  flash-to-device = mkInstaller "flash-to-device" {
-    "00-esp" = copyFromSplit fullConfig partitions.esp;
-    "10-store-verity" = copyFromSplit fullConfig partitions.store-verity;
-    "11-store" = copyFromSplit fullConfig partitions.store;
-    "20-store-B-verity" = partitions.empty-store-verity;
-    "21-store-B" = partitions.empty-store;
-    "30-var" = partitions.var;
-  };
-
-  flash-installer-to-device = mkInstaller "flash-installer-to-device" {
-    "00-esp" = copyFromSplit installerConfig partitions.esp;
-    "10-store-verity" = copyFromSplit installerConfig partitions.store-verity;
-    "11-store" = copyFromSplit installerConfig partitions.store;
-  };
+  flash-installer-to-device =
+    let
+      cfg = installerConfig.extendModules {
+        modules = [
+          (
+            { config, lib, ... }:
+            let
+              defs = config.system.build._partitionDefs;
+              mkInstaller = config.system.build._mkInstaller;
+            in
+            {
+              system.build._flash-installer-to-device = mkInstaller "flash-to-device" {
+                "00-esp" = copyFromSplit config defs.esp;
+                "10-store-verity" = copyFromSplit config defs.store-verity;
+                "11-store" = copyFromSplit config defs.store;
+              };
+            }
+          )
+        ];
+      };
+    in
+    cfg.config.system.build._flash-installer-to-device;
 
   updatePayload =
     let
       updateBase = updateConfig.config.image.baseName;
+      version = updateConfig.config.system.image.version;
+      ukiFile = updateConfig.config.system.boot.loader.ukiFile;
     in
     pkgs.runCommand "update-${version}"
       {
@@ -212,15 +210,21 @@ let
       set -euo pipefail
       nix \
         --extra-experimental-features "nix-command flakes" \
-        copy --to "ssh://${hostUrl}:/var/nix/upper" "${topLevel}"
+        copy --to "ssh://${hostUrl}:/var/nix/upper" "${updateToplevel}"
       ssh "${hostUrl}" '
         set -euo pipefail
         activate-overlay
-        ${topLevel}/bin/switch-to-configuration test
+        ${updateToplevel}/bin/switch-to-configuration test
       '
     '';
   };
 
+  fullImage = fullConfig.config.system.build.image;
+  updateImage = updateConfig.config.system.build.image;
+  installerImage = installerConfig.config.system.build.image;
+
+  updateToplevel = updateConfig.config.system.build.toplevel;
+  ukiDrv = updateConfig.config.system.build.uki;
 in
 {
   inherit
@@ -229,7 +233,7 @@ in
     updateImage
 
     updatePayload
-    topLevel
+    updateToplevel
 
     flash-to-device
     flash-installer-to-device

@@ -27,14 +27,15 @@
     {
       packages = forAllSystems (
         system:
-        mantle.lib.init {
-          pkgs = pkgsFor.${system};
+        mantle.lib.init pkgsFor.${system} {
+          # pkgs = pkgsFor.${system};
           modules = [
-            nixos-hardware.nixosModules.raspberry-pi-4
+            # nixos-hardware.nixosModules.raspberry-pi-4
             {
               nixpkgs = {
                 buildPlatform = system;
-                hostPlatform = "aarch64-linux";
+                # hostPlatform = "aarch64-linux";
+                hostPlatform = "x86_64-linux";
               };
 
               partitions = {

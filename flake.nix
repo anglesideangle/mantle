@@ -18,18 +18,17 @@
       pkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system});
     in
     {
-      lib.init = args: (import ./lib) (args // { nixosModule = self.nixosModules.default; });
+      lib.init = import ./lib self.nixosModules.default;
 
       nixosModules.default = import ./modules;
 
-      packages = forAllSystems (system: { });
-
-      checks = forAllSystems (system: {
-        modules = import ./tests {
+      checks = forAllSystems (
+        system:
+        import ./tests {
           pkgs = pkgsFor.${system};
           inherit self;
-        };
-      });
+        }
+      );
 
       templates = {
         basic = {

@@ -9,9 +9,10 @@ in
 
     boot.initrd.systemd.enable = true;
     system.etc.overlay.enable = true;
-    system.etc.overlay.mutable = true; # TODO upstream fix
+    system.etc.overlay.mutable = false;
     systemd.sysusers.enable = false;
     services.userborn.enable = true;
+    services.userborn.static = true;
     boot.tmp.useTmpfs = true;
 
     system.tools.nixos-generate-config.enable = false;
