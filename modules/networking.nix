@@ -9,14 +9,19 @@ let
   activate-overlay = pkgs.writeShellScriptBin "mount-overlay" ''
     set -euo pipefail
 
-    mkdir -p /var/nix/upper /var/nix/work
+    # The upper dir mirrors the store layout that `nix copy --to
+    # ssh://host?remote-store=/var/nix/upper` writes on the device
+    # (a chroot store: <root>/nix/store/<paths>), so that paths copied
+    # onto the device appear directly in /nix/store once the overlay
+    # is mounted.
+    mkdir -p /var/nix/upper/nix/store /var/nix/work
 
     if [ "$(${topmost-fstype} || true)" = overlay ]; then
       exit 0
     fi
 
     mount -t overlay overlay \
-      -o lowerdir=/usr/nix/store,upperdir=/var/nix/upper,workdir=/var/nix/work \
+      -o lowerdir=/usr/nix/store,upperdir=/var/nix/upper/nix/store,workdir=/var/nix/work \
       /nix/store
   '';
 

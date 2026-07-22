@@ -32,6 +32,7 @@ in
     fileSystems = {
       "/" = mkDefault {
         fsType = "tmpfs";
+        options = [ "mode=755" ];
       };
 
       "/var" = mkDefault {

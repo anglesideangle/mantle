@@ -62,6 +62,7 @@ with lib;
       };
       size = mkOption {
         type = types.str;
+        default = null;
       };
     };
   };

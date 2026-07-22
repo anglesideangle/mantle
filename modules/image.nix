@@ -133,6 +133,9 @@ in
         GrowFileSystem = "yes";
         Weight = "100";
         FactoryReset = "yes";
+      }
+      // optionalAttrs (cfg.var.size != null) {
+        SizeMinBytes = cfg.var.size;
       };
 
       var-installer.repartConfig = {

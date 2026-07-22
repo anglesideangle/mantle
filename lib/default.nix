@@ -1,15 +1,29 @@
 mantleModule: pkgs: args:
 let
-  copyFromSplit = config: partition: {
-    repartConfig = removeAttrs partition.repartConfig [ "Format" ] // {
-      CopyBlocks = "${config.system.build.image}/${config.image.baseName}.${partition.repartConfig.SplitName}.raw";
-    };
+  # Creates a new repart definition containing instructions for systemd-repart
+  # to copy from the specified original `partition`. The resulting partition
+  # will have the same contents and UUID as the original.
+  copyFromRepartSplit = config: partition: {
+    repartConfig =
+      removeAttrs partition.repartConfig [
+        "Format"
+        "Verity"
+        "VerityMatchKey"
+      ]
+      // {
+        CopyBlocks = "${config.system.build.image}/${config.image.baseName}.${partition.repartConfig.SplitName}.raw";
+        UUID = pkgs.runCommand "get-uuid" { } ''
+          ${pkgs.jq}/bin/jq -r \
+            '.[] | select(.label == "${partition.repartConfig.Label}") | .uuid' \
+            "${config.system.build.image}/repart-output.json"" \
+            > $out
+        '';
+      };
   };
 
   baseConfig = import "${pkgs.path}/nixos/lib/eval-config.nix" (
     {
       system = null;
-      # inherit (pkgs) lib;
       modules = (args.modules or [ ]) ++ [ mantleModule ];
     }
     // removeAttrs args [ "modules" ]
@@ -99,9 +113,9 @@ let
             in
             {
               system.build._flash-to-device = mkInstaller "flash-to-device" {
-                "00-esp" = copyFromSplit config defs.esp;
-                "10-store-verity" = copyFromSplit config defs.store-verity;
-                "11-store" = copyFromSplit config defs.store;
+                "00-esp" = copyFromRepartSplit config defs.esp;
+                "10-store-verity" = copyFromRepartSplit config defs.store-verity;
+                "11-store" = copyFromRepartSplit config defs.store;
                 "20-store-B-verity" = defs.empty-store-verity;
                 "21-store-B" = defs.empty-store;
                 "30-var" = defs.var;
@@ -125,9 +139,9 @@ let
             in
             {
               system.build._flash-installer-to-device = mkInstaller "flash-to-device" {
-                "00-esp" = copyFromSplit config defs.esp;
-                "10-store-verity" = copyFromSplit config defs.store-verity;
-                "11-store" = copyFromSplit config defs.store;
+                "00-esp" = copyFromRepartSplit config defs.esp;
+                "10-store-verity" = copyFromRepartSplit config defs.store-verity;
+                "11-store" = copyFromRepartSplit config defs.store;
               };
             }
           )
@@ -158,9 +172,11 @@ let
   activate-overlay = pkgs.writeShellApplication {
     name = "activate-overlay";
     runtimeInputs = [ pkgs.openssh ];
+    # The in-image helper from modules/networking.nix is called
+    # `mount-overlay`.
     text = ''
       set -euo pipefail
-      ssh "${hostUrl}" "activate-overlay"
+      ssh "${hostUrl}" "mount-overlay"
     '';
   };
 
@@ -210,10 +226,10 @@ let
       set -euo pipefail
       nix \
         --extra-experimental-features "nix-command flakes" \
-        copy --to "ssh://${hostUrl}:/var/nix/upper" "${updateToplevel}"
+        copy --to "ssh://${hostUrl}?remote-store=/var/nix/upper" "${updateToplevel}"
       ssh "${hostUrl}" '
         set -euo pipefail
-        activate-overlay
+        mount-overlay
         ${updateToplevel}/bin/switch-to-configuration test
       '
     '';

@@ -13,9 +13,9 @@ let
   );
   repartDefs = lib.concatStringsSep "\n" (
     lib.mapAttrsToList (filename: _v: ''
-      cat <<'REPART_CONF_EOF' "$defs/${filename}.conf"
+      cat >"$defs/${filename}.conf" <<EOF
       ${builtins.readFile "${repartCfg}/${filename}.conf"}
-      REPART_CONF_EOF
+      EOF
     '') partitions
   );
 in
