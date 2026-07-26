@@ -35,6 +35,9 @@ with lib;
         type = types.str;
         default = "store-verity";
       };
+      size = mkOption {
+        type = types.str;
+      };
     };
 
     store = {

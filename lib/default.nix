@@ -12,12 +12,16 @@ let
       ]
       // {
         CopyBlocks = "${config.system.build.image}/${config.image.baseName}.${partition.repartConfig.SplitName}.raw";
-        UUID = pkgs.runCommand "get-uuid" { } ''
-          ${pkgs.jq}/bin/jq -r \
-            '.[] | select(.label == "${partition.repartConfig.Label}") | .uuid' \
-            "${config.system.build.image}/repart-output.json"" \
-            > $out
-        '';
+        UUID =
+          let
+            uuid-file = pkgs.runCommand "get-uuid" { } ''
+              ${pkgs.jq}/bin/jq -r \
+                '.[] | select(.label == "${partition.repartConfig.Label}") | .uuid' \
+                "${config.system.build.image}/repart-output.json" \
+                > $out
+            '';
+          in
+          builtins.readFile uuid-file;
       };
   };
 
@@ -32,15 +36,15 @@ let
   fullConfig = baseConfig.extendModules {
     modules = [
       (
-        { config, lib, ... }:
+        { config, ... }:
         let
           defs = config.system.build._partitionDefs;
         in
         {
-          image.repart.partitions = lib.mkForce {
-            "00-esp" = defs.esp;
-            "10-store-verity" = defs.store-verity;
-            "11-store" = defs.store;
+          image.repart.partitions = {
+            # "00-esp" = defs.esp;
+            # "10-store-verity" = defs.store-verity;
+            # "11-store" = defs.store;
             "20-store-B-verity" = defs.empty-store-verity;
             "21-store-B" = defs.empty-store;
             "30-var" = defs.var;
@@ -52,47 +56,44 @@ let
 
   updateConfig = baseConfig.extendModules {
     modules = [
-      (
-        { config, lib, ... }:
-        let
-          defs = config.system.build._partitionDefs;
-        in
-        {
-          image.repart.partitions = lib.mkForce {
-            "00-esp" = defs.esp;
-            "10-store-verity" = defs.store-verity;
-            "11-store" = defs.store;
-          };
-        }
-      )
+      {
+        image.repart.compression = {
+          enable = true;
+          algorithm = "zstd";
+        };
+      }
     ];
   };
 
   installerConfig = baseConfig.extendModules {
     modules = [
       (
-        { config, lib, ... }:
+        { config, ... }:
         let
           defs = config.system.build._partitionDefs;
-          mkInstaller = config.system.build._mkInstaller;
+          mkInstaller = config.system.build._mkInstallerHostPlatform;
         in
         {
           environment.systemPackages = [
             (mkInstaller "mantle-install" {
-              "00-esp" = defs.esp-installer-copy;
-              "10-store-verity" = defs.store-verity-copy;
-              "11-store" = defs.store-installer-copy;
+              "00-esp" = copyFromRepartSplit config defs.esp;
+              "10-store-verity" = copyFromRepartSplit config defs.store-verity;
+              "11-store" = copyFromRepartSplit config defs.store-installer;
+              "20-store-B-verity" = defs.empty-store-verity;
+              "21-store-B" = defs.empty-store;
+              "30-var" = defs.var;
             })
           ];
 
           image.repart = {
             name = "${config.system.image.id}-installer";
-            partitions = lib.mkForce {
-              "00-esp" = defs.esp;
-              "10-store-verity" = defs.store-verity;
-              "11-store" = defs.store;
-              "20-installer" = defs.var-installer;
-            };
+            # partitions = lib.mkForce {
+            #   "00-esp" = defs.esp;
+            #   "10-store-verity" = defs.store-verity;
+            #   "11-store" = defs.store;
+            #   # TODO remove var on installer?
+            #   # "20-var" = defs.var-installer;
+            # };
           };
         }
       )
@@ -103,13 +104,13 @@ let
 
   flash-to-device =
     let
-      cfg = fullConfig.extendModules {
+      cfg = baseConfig.extendModules {
         modules = [
           (
-            { config, lib, ... }:
+            { config, ... }:
             let
               defs = config.system.build._partitionDefs;
-              mkInstaller = config.system.build._mkInstaller;
+              mkInstaller = config.system.build._mkInstallerBuildPlatform;
             in
             {
               system.build._flash-to-device = mkInstaller "flash-to-device" {
@@ -132,10 +133,10 @@ let
       cfg = installerConfig.extendModules {
         modules = [
           (
-            { config, lib, ... }:
+            { config, ... }:
             let
               defs = config.system.build._partitionDefs;
-              mkInstaller = config.system.build._mkInstaller;
+              mkInstaller = config.system.build._mkInstallerBuildPlatform;
             in
             {
               system.build._flash-installer-to-device = mkInstaller "flash-to-device" {
@@ -172,8 +173,6 @@ let
   activate-overlay = pkgs.writeShellApplication {
     name = "activate-overlay";
     runtimeInputs = [ pkgs.openssh ];
-    # The in-image helper from modules/networking.nix is called
-    # `mount-overlay`.
     text = ''
       set -euo pipefail
       ssh "${hostUrl}" "mount-overlay"

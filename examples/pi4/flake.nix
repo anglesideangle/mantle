@@ -1,11 +1,14 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:anglesideangle/nixpkgs/userborn-cross-compilation";
     mantle = {
       url = "path:/home/asa/Projects/mantle";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nixos-hardware.url = "github:nixos/nixos-hardware";
+    nixos-hardware = {
+      url = "github:nixos/nixos-hardware";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -30,25 +33,26 @@
         mantle.lib.init pkgsFor.${system} {
           # pkgs = pkgsFor.${system};
           modules = [
-            # nixos-hardware.nixosModules.raspberry-pi-4
+            nixos-hardware.nixosModules.raspberry-pi-4
             {
               nixpkgs = {
                 buildPlatform = system;
-                # hostPlatform = "aarch64-linux";
-                hostPlatform = "x86_64-linux";
+                hostPlatform = "aarch64-linux";
+                # hostPlatform = "x86_64-linux";
               };
 
               partitions = {
                 enable = true;
                 esp.size = "128M";
                 store.size = "5G";
+                store-verity.size = "275M";
                 var.size = "5G";
               };
 
-              system.image.id = "imageid";
+              system.image.id = "mantle-pi";
               system.image.version = self.shortRev or "dev";
-              boot.uki.name = "ukiname";
-              networking.hostName = "mantle-target";
+              boot.uki.name = "mantle-pi";
+              networking.hostName = "mantle-pi";
             }
           ];
         }

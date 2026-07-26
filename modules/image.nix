@@ -55,9 +55,10 @@ in
         ukiPath = "/EFI/Linux/${config.system.boot.loader.ukiFile}";
       };
       split = true;
-      compression = {
-        enable = true;
-        algorithm = "zstd";
+      partitions = {
+        "00-esp" = defs.esp;
+        "10-store-verity" = defs.store-verity;
+        "11-store" = defs.store;
       };
     };
 
@@ -74,27 +75,21 @@ in
         contents.${bootLocation}.source = "${pkgs.systemd}/lib/systemd/boot/efi/systemd-boot${efiArch}.efi";
       };
 
-      esp-installer-copy.repartConfig = defs.esp.repartConfig // {
-        CopyBlocks = "auto";
-      };
-
       store = {
         storePaths = [ config.system.build.toplevel ];
         repartConfig = {
           Type = partitionTypes.usr;
           Label = storeLabel;
           Format = cfg.store.format;
+          # Compression = "zstd";
           Verity = "data";
           VerityMatchKey = "store";
           ReadOnly = "yes";
+          Minimize = "off";
           SplitName = "store";
           SizeMinBytes = cfg.store.size;
           SizeMaxBytes = cfg.store.size;
         };
-      };
-
-      store-installer-copy.repartConfig = defs.store.repartConfig // {
-        CopyBlocks = "auto";
       };
 
       store-verity.repartConfig = {
@@ -102,26 +97,25 @@ in
         Label = storeVerityLabel;
         Verity = "hash";
         VerityMatchKey = "store";
+        Minimize = "off";
         SplitName = "store-verity";
-      };
-
-      store-verity-copy.repartConfig = defs.store-verity.repartConfig // {
-        CopyBlocks = "auto";
+        # VerityHashBlockSizeBytes = "4096";
+        # VerityDataBlockSizeBytes = "4096";
+        SizeMinBytes = cfg.store-verity.size;
+        SizeMaxBytes = cfg.store-verity.size;
       };
 
       empty-store.repartConfig = {
-        inherit (defs.store.repartConfig)
-          Type
-          SizeMinBytes
-          SizeMaxBytes
-          ;
+        inherit (defs.store.repartConfig) Type SizeMinBytes SizeMaxBytes;
         Label = "_empty";
+        SplitName = "store-empty";
         Minimize = "off";
       };
 
       empty-store-verity.repartConfig = {
-        inherit (defs.store-verity.repartConfig) Type;
+        inherit (defs.store-verity.repartConfig) Type SizeMinBytes SizeMaxBytes;
         Label = "_empty";
+        SplitName = "store-empty";
         Minimize = "off";
       };
 
@@ -130,8 +124,8 @@ in
         Format = cfg.var.format;
         Label = cfg.var.label;
         Minimize = "off";
-        GrowFileSystem = "yes";
-        Weight = "100";
+        # GrowFileSystem = "yes";
+        Weight = "1000";
         FactoryReset = "yes";
       }
       // optionalAttrs (cfg.var.size != null) {
@@ -141,14 +135,18 @@ in
       var-installer.repartConfig = {
         Type = partitionTypes.var;
         Format = cfg.var.format;
-        Label = "installer-${cfg.var.label}";
+        Label = cfg.var.label;
         Minimize = "off";
-        GrowFileSystem = "yes";
-        Weight = "100";
+        # GrowFileSystem = "yes";
+        Weight = "1000";
       };
     };
 
     # mkInstaller depends on systemd utils, which requires a module system :(
-    system.build._mkInstaller = import ../lib/mk-installer.nix { inherit pkgs lib utils; };
+    system.build._mkInstallerHostPlatform = import ../lib/mk-installer.nix { inherit pkgs lib utils; };
+    system.build._mkInstallerBuildPlatform = import ../lib/mk-installer.nix {
+      inherit lib utils;
+      pkgs = pkgs.buildPackages;
+    };
   };
 }
