@@ -39,7 +39,7 @@ in
         options = [ "mode=755" ];
       };
 
-      "/var" = mkDefault {
+      "/var" = {
         device = "/dev/disk/by-partlabel/${cfg.var.label}";
         fsType = cfg.var.format;
         neededForBoot = true;

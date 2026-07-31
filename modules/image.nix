@@ -115,7 +115,7 @@ in
       empty-store-verity.repartConfig = {
         inherit (defs.store-verity.repartConfig) Type SizeMinBytes SizeMaxBytes;
         Label = "_empty";
-        SplitName = "store-empty";
+        SplitName = "store-verity-empty";
         Minimize = "off";
       };
 

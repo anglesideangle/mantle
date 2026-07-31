@@ -1,43 +1,4 @@
 { pkgs, ... }:
-let
-  # `findmnt -n -o FSTYPE <path>` returns *every* mount in the stack at the
-  # given path, oldest first (underlying dm-verity /usr erofs, the read-only
-  # /nix/store bind, then any overlay on top). Taking the last line gives the
-  # topmost filesystem, which is what we want to inspect here.
-  topmost-fstype = "findmnt -n -o FSTYPE -T /nix/store | tail -n1";
-
-  activate-overlay = pkgs.writeShellScriptBin "mount-overlay" ''
-    set -euo pipefail
-
-    # The upper dir mirrors the store layout that `nix copy --to
-    # ssh://host?remote-store=/var/nix/upper` writes on the device
-    # (a chroot store: <root>/nix/store/<paths>), so that paths copied
-    # onto the device appear directly in /nix/store once the overlay
-    # is mounted.
-    mkdir -p /var/nix/upper/nix/store /var/nix/work
-
-    if [ "$(${topmost-fstype} || true)" = overlay ]; then
-      exit 0
-    fi
-
-    mount -t overlay overlay \
-      -o lowerdir=/usr/nix/store,upperdir=/var/nix/upper/nix/store,workdir=/var/nix/work \
-      /nix/store
-  '';
-
-  deactivate-overlay = pkgs.writeShellScriptBin "deactivate-overlay" ''
-    set -euo pipefail
-
-    if [ "$(${topmost-fstype} || true)" = overlay ]; then
-      # /nix/store is busy on a running system (open libs, store paths in
-      # use), so a plain `umount` returns EBUSY. A lazy umount detaches
-      # the overlay from the namespace immediately; already-open files
-      # keep the overlay alive until they're closed, while new lookups go
-      # back to the read-only verity bind mount underneath.
-      umount -l /nix/store
-    fi
-  '';
-in
 {
   services.openssh = {
     enable = true;
@@ -54,8 +15,61 @@ in
     };
   };
 
-  environment.systemPackages = [
-    activate-overlay
-    deactivate-overlay
+  systemd.tmpfiles.rules = [
+    "d /var/nix/upper/nix/store 0755 root root -"
+    "d /var/nix/work 0755 root root -"
   ];
+
+  systemd.services.check-clear-store-upper = {
+    description = "Clear /var/nix/upper if the base image has changed.";
+
+    requires = [
+      "var.mount"
+      "systemd-tmpfiles-setup.service"
+    ];
+    after = [
+      "var.mount"
+      "systemd-tmpfiles-setup.service"
+    ];
+
+    serviceConfig = {
+      Type = "oneshot";
+      ExecCondition = ''
+        ${pkgs.bash}/bin/sh -c "! ${pkgs.diffutils}/bin/cmp -s /var/nix/prev-os-release /etc/os-release"
+      '';
+      ExecStart = "${pkgs.bash}/bin/sh -c '${pkgs.coreutils}/bin/rm -rf /var/nix/*'";
+      ExecStartPost = "${pkgs.coreutils}/bin/cp /etc/os-release /var/nix/prev-os-release";
+    };
+  };
+
+  systemd.services.nix-store-overlay = {
+    description = "Mount a writeable overlay to /nix/store.";
+
+    requires = [
+      "var.mount"
+      "systemd-tmpfiles-setup.service"
+    ];
+    after = [
+      "var.mount"
+      "systemd-tmpfiles-setup.service"
+      "check-clear-store-upper.service"
+    ];
+
+    # A restart would drop the overlay out from under a running
+    # switched-to configuration; switch-to-configuration must leave this
+    # unit alone across generations.
+    restartIfChanged = false;
+
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = ''
+        ${pkgs.mount}/bin/mount \
+          -t overlay overlay \
+          -o lowerdir=/usr/nix/store,upperdir=/var/nix/upper/nix/store,workdir=/var/nix/work \
+          /nix/store
+      '';
+      ExecStop = "${pkgs.umount}/bin/umount -l /nix/store";
+    };
+  };
 }

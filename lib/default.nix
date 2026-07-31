@@ -68,12 +68,17 @@ let
   installerConfig = baseConfig.extendModules {
     modules = [
       (
-        { config, ... }:
+        { config, lib, ... }:
         let
           defs = config.system.build._partitionDefs;
           mkInstaller = config.system.build._mkInstallerHostPlatform;
         in
         {
+          fileSystems."/var" = {
+            fsType = "tmpfs";
+            options = lib.mkForce [ "noatime" ];
+          };
+
           environment.systemPackages = [
             (mkInstaller "mantle-install" {
               "00-esp" = copyFromRepartSplit config defs.esp;
@@ -85,16 +90,7 @@ let
             })
           ];
 
-          image.repart = {
-            name = "${config.system.image.id}-installer";
-            # partitions = lib.mkForce {
-            #   "00-esp" = defs.esp;
-            #   "10-store-verity" = defs.store-verity;
-            #   "11-store" = defs.store;
-            #   # TODO remove var on installer?
-            #   # "20-var" = defs.var-installer;
-            # };
-          };
+          image.repart.name = "${config.system.image.id}-installer";
         }
       )
     ];
@@ -174,8 +170,7 @@ let
     name = "activate-overlay";
     runtimeInputs = [ pkgs.openssh ];
     text = ''
-      set -euo pipefail
-      ssh "${hostUrl}" "mount-overlay"
+      ssh "${hostUrl}" "systemctl start nix-store-overlay"
     '';
   };
 
@@ -183,8 +178,7 @@ let
     name = "deactivate-overlay";
     runtimeInputs = [ pkgs.openssh ];
     text = ''
-      set -euo pipefail
-      ssh "${hostUrl}" "deactivate-overlay"
+      ssh "${hostUrl}" "systemctl stop nix-store-overlay"
     '';
   };
 
@@ -192,7 +186,6 @@ let
     name = "clear-overlay";
     runtimeInputs = [ pkgs.openssh ];
     text = ''
-      set -euo pipefail
       ssh "${hostUrl}" "rm -rf /var/nix/upper"
     '';
   };
@@ -206,12 +199,7 @@ let
     text = ''
       set -euo pipefail
       scp -r "${updatePayload}" "${hostUrl}:/var/updates/"
-      ssh "${hostUrl}" '
-        set -eu pipefail
-        systemd-sysupdate update
-        rm -rf /var/nix/upper
-        systemctl reboot
-      '
+      ssh "${hostUrl}" "systemd-sysupdate update --reboot"
     '';
   };
 
@@ -228,7 +216,7 @@ let
         copy --to "ssh://${hostUrl}?remote-store=/var/nix/upper" "${updateToplevel}"
       ssh "${hostUrl}" '
         set -euo pipefail
-        mount-overlay
+        systemctl start nix-store-overlay
         ${updateToplevel}/bin/switch-to-configuration test
       '
     '';

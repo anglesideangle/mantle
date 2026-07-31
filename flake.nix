@@ -32,8 +32,8 @@
 
       templates = {
         basic = {
-          path = ./examples/base;
-          description = "Basic example?";
+          path = ./examples/pi4;
+          description = "pi4 minimal template";
         };
       };
 
