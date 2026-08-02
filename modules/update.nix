@@ -6,8 +6,8 @@
 }:
 let
   cfg = config.partitions;
-  storePrefix = "${cfg.store.label-prefix}";
-  storeVerityPrefix = "${cfg.store-verity.label-prefix}";
+  storePrefix = cfg.store.label-prefix;
+  storeVerityPrefix = cfg.store-verity.label-prefix;
   sourcePrefix = config.image.repart.name;
 
   partitionTypes = {
@@ -32,7 +32,7 @@ in
     transfers = {
       "10-store" = {
         Source = {
-          MatchPattern = [ "${sourcePrefix}_@v.store.raw.zst" ];
+          MatchPattern = [ "${sourcePrefix}_@v.store_@u.raw.zst" ];
           Path = "/var/updates/";
           Type = "regular-file";
         };
@@ -51,7 +51,7 @@ in
 
       "20-store-verity" = {
         Source = {
-          MatchPattern = [ "${sourcePrefix}_@v.store-verity.raw.zst" ];
+          MatchPattern = [ "${sourcePrefix}_@v.store-verity_@u.raw.zst" ];
           Path = "/var/updates/";
           Type = "regular-file";
         };

@@ -86,7 +86,7 @@ in
           VerityMatchKey = "store";
           ReadOnly = "yes";
           Minimize = "off";
-          SplitName = "store";
+          SplitName = "store_%U";
           SizeMinBytes = cfg.store.size;
           SizeMaxBytes = cfg.store.size;
         };
@@ -98,7 +98,7 @@ in
         Verity = "hash";
         VerityMatchKey = "store";
         Minimize = "off";
-        SplitName = "store-verity";
+        SplitName = "store-verity_%U";
         # VerityHashBlockSizeBytes = "4096";
         # VerityDataBlockSizeBytes = "4096";
         SizeMinBytes = cfg.store-verity.size;

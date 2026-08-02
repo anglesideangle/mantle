@@ -13,59 +13,54 @@ with lib;
     "${modulesPath}/profiles/minimal.nix"
   ];
 
-  options.partitions = {
-    enable = mkEnableOption "partitioning";
+  options = {
+    system.version = mkOption { type = types.str; };
 
-    esp = {
-      label = mkOption {
-        type = types.str;
-        default = "boot";
-      };
-      format = mkOption {
-        type = types.str;
-        default = "vfat";
-      };
-      size = mkOption {
-        type = types.str;
-      };
-    };
+    partitions = {
+      enable = mkEnableOption "partitioning";
 
-    store-verity = {
-      label-prefix = mkOption {
-        type = types.str;
-        default = "store-verity";
+      esp = {
+        label = mkOption {
+          type = types.str;
+          default = "boot";
+        };
+        format = mkOption {
+          type = types.str;
+          default = "vfat";
+        };
+        size = mkOption { type = types.str; };
       };
-      size = mkOption {
-        type = types.str;
-      };
-    };
 
-    store = {
-      label-prefix = mkOption {
-        type = types.str;
-        default = "store";
+      store-verity = {
+        label-prefix = mkOption {
+          type = types.str;
+          default = "store-verity";
+        };
+        size = mkOption { type = types.str; };
       };
-      format = mkOption {
-        type = types.str;
-        default = "erofs";
-      };
-      size = mkOption {
-        type = types.str;
-      };
-    };
 
-    var = {
-      label = mkOption {
-        type = types.str;
-        default = "persistent";
+      store = {
+        label-prefix = mkOption {
+          type = types.str;
+          default = "store";
+        };
+        format = mkOption {
+          type = types.str;
+          default = "erofs";
+        };
+        size = mkOption { type = types.str; };
       };
-      format = mkOption {
-        type = types.str;
-        default = "ext4";
-      };
-      size = mkOption {
-        type = types.str;
-        default = null;
+
+      var = {
+        label = mkOption {
+          type = types.str;
+          default = "persistent";
+        };
+        format = mkOption {
+          type = types.str;
+          default = "ext4";
+        };
+        size = mkOption { type = types.str; };
       };
     };
   };

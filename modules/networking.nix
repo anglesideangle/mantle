@@ -1,68 +1,45 @@
 { pkgs, ... }:
 {
-  services.openssh = {
-    enable = true;
-    settings.PasswordAuthentication = true;
-  };
-
-  services.avahi = {
-    enable = true;
-    nssmdns4 = true;
-    publish = {
-      enable = true;
-      addresses = true;
-      workstation = true;
-    };
-  };
+  environment.systemPackages = [ pkgs.rsync ];
 
   systemd.tmpfiles.rules = [
-    "d /var/nix/upper/nix/store 0755 root root -"
-    "d /var/nix/work 0755 root root -"
+    "f /var/nix/prev-os-release 0755 root root -"
+    "d /var/updates 0775 root root -"
   ];
 
   systemd.services.check-clear-store-upper = {
     description = "Clear /var/nix/upper if the base image has changed.";
 
-    requires = [
-      "var.mount"
-      "systemd-tmpfiles-setup.service"
-    ];
-    after = [
-      "var.mount"
-      "systemd-tmpfiles-setup.service"
-    ];
+    requires = [ "var.mount" ];
+    after = [ "var.mount" ];
 
     serviceConfig = {
       Type = "oneshot";
       ExecCondition = ''
-        ${pkgs.bash}/bin/sh -c "! ${pkgs.diffutils}/bin/cmp -s /var/nix/prev-os-release /etc/os-release"
+        ${pkgs.bash}/bin/sh -c "! ${pkgs.diffutils}/bin/cmp -s /var/nix/prev-os-release /run/booted-system/etc/os-release"
       '';
       ExecStart = "${pkgs.bash}/bin/sh -c '${pkgs.coreutils}/bin/rm -rf /var/nix/*'";
-      ExecStartPost = "${pkgs.coreutils}/bin/cp /etc/os-release /var/nix/prev-os-release";
+      ExecStartPost = "${pkgs.coreutils}/bin/cp /run/booted-system/etc/os-release /var/nix/prev-os-release";
     };
   };
 
   systemd.services.nix-store-overlay = {
     description = "Mount a writeable overlay to /nix/store.";
 
-    requires = [
-      "var.mount"
-      "systemd-tmpfiles-setup.service"
-    ];
+    requires = [ "var.mount" ];
     after = [
       "var.mount"
-      "systemd-tmpfiles-setup.service"
       "check-clear-store-upper.service"
     ];
 
-    # A restart would drop the overlay out from under a running
-    # switched-to configuration; switch-to-configuration must leave this
-    # unit alone across generations.
+    # A restart of this service would pull the overlay out from under a running
+    # system configuration
     restartIfChanged = false;
 
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
+      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /var/nix/upper/nix/store /var/nix/work";
       ExecStart = ''
         ${pkgs.mount}/bin/mount \
           -t overlay overlay \

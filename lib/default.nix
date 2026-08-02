@@ -1,9 +1,42 @@
 mantleModule: pkgs: args:
 let
+  inherit (pkgs) lib;
+
   # Creates a new repart definition containing instructions for systemd-repart
-  # to copy from the specified original `partition`. The resulting partition
-  # will have the same contents and UUID as the original.
-  copyFromRepartSplit = config: partition: {
+  # to copy from the path of the specified original `partition` in the nix
+  # store. The resulting partition will have the same content and attributes as
+  # the original.
+  copyFromRepartOutput =
+    config: partition:
+    let
+      uuid-file = pkgs.runCommand "get-uuid" { } ''
+        ${pkgs.jq}/bin/jq -r \
+          '.[] | select(.label == "${partition.repartConfig.Label}") | .uuid' \
+          "${config.system.build.image}/repart-output.json" \
+          > $out
+      '';
+      uuid = lib.concatStringsSep "" (lib.splitString "-" (lib.trim (builtins.readFile uuid-file)));
+      # Expand %U in SplitName so CopyBlocks references the correct artifact by
+      # name (e.g. "store_<uuid>.raw" instead of "store_%U.raw").
+      splitName = builtins.replaceStrings [ "%U" ] [ uuid ] partition.repartConfig.SplitName;
+    in
+    {
+      repartConfig =
+        removeAttrs partition.repartConfig [
+          "Format"
+          "Verity"
+          "VerityMatchKey"
+        ]
+        // {
+          CopyBlocks = "${config.system.build.image}/${config.image.baseName}.${splitName}.raw";
+          UUID = uuid;
+        };
+    };
+
+  # Creates a new repart definition containing instructions for systemd-repart
+  # to copy from the path of the specified original `partition` on the disk. The
+  # resulting partition will have the same content and attributes as the original.
+  copyFromPartition = partition: {
     repartConfig =
       removeAttrs partition.repartConfig [
         "Format"
@@ -11,17 +44,7 @@ let
         "VerityMatchKey"
       ]
       // {
-        CopyBlocks = "${config.system.build.image}/${config.image.baseName}.${partition.repartConfig.SplitName}.raw";
-        UUID =
-          let
-            uuid-file = pkgs.runCommand "get-uuid" { } ''
-              ${pkgs.jq}/bin/jq -r \
-                '.[] | select(.label == "${partition.repartConfig.Label}") | .uuid' \
-                "${config.system.build.image}/repart-output.json" \
-                > $out
-            '';
-          in
-          builtins.readFile uuid-file;
+        CopyBlocks = "auto";
       };
   };
 
@@ -42,9 +65,6 @@ let
         in
         {
           image.repart.partitions = {
-            # "00-esp" = defs.esp;
-            # "10-store-verity" = defs.store-verity;
-            # "11-store" = defs.store;
             "20-store-B-verity" = defs.empty-store-verity;
             "21-store-B" = defs.empty-store;
             "30-var" = defs.var;
@@ -65,6 +85,16 @@ let
     ];
   };
 
+  overlayConfig = baseConfig.extendModules {
+    modules = [
+      ({ lib, config, ... }: {
+        system.image.version = lib.mkForce "${config.system.version}~overlay";
+        system.switch.enable = true;
+        services.userborn.static = false;
+      })
+    ];
+  };
+
   installerConfig = baseConfig.extendModules {
     modules = [
       (
@@ -75,15 +105,15 @@ let
         in
         {
           fileSystems."/var" = {
-            fsType = "tmpfs";
+            fsType = lib.mkForce "tmpfs";
             options = lib.mkForce [ "noatime" ];
           };
 
           environment.systemPackages = [
             (mkInstaller "mantle-install" {
-              "00-esp" = copyFromRepartSplit config defs.esp;
-              "10-store-verity" = copyFromRepartSplit config defs.store-verity;
-              "11-store" = copyFromRepartSplit config defs.store-installer;
+              "00-esp" = copyFromPartition defs.esp;
+              "10-store-verity" = copyFromPartition defs.store-verity;
+              "11-store" = copyFromPartition defs.store;
               "20-store-B-verity" = defs.empty-store-verity;
               "21-store-B" = defs.empty-store;
               "30-var" = defs.var;
@@ -95,8 +125,6 @@ let
       )
     ];
   };
-
-  hostUrl = "root@${updateConfig.config.networking.hostName}";
 
   flash-to-device =
     let
@@ -110,9 +138,9 @@ let
             in
             {
               system.build._flash-to-device = mkInstaller "flash-to-device" {
-                "00-esp" = copyFromRepartSplit config defs.esp;
-                "10-store-verity" = copyFromRepartSplit config defs.store-verity;
-                "11-store" = copyFromRepartSplit config defs.store;
+                "00-esp" = copyFromRepartOutput config defs.esp;
+                "10-store-verity" = copyFromRepartOutput config defs.store-verity;
+                "11-store" = copyFromRepartOutput config defs.store;
                 "20-store-B-verity" = defs.empty-store-verity;
                 "21-store-B" = defs.empty-store;
                 "30-var" = defs.var;
@@ -136,9 +164,9 @@ let
             in
             {
               system.build._flash-installer-to-device = mkInstaller "flash-to-device" {
-                "00-esp" = copyFromRepartSplit config defs.esp;
-                "10-store-verity" = copyFromRepartSplit config defs.store-verity;
-                "11-store" = copyFromRepartSplit config defs.store;
+                "00-esp" = copyFromRepartOutput config defs.esp;
+                "10-store-verity" = copyFromRepartOutput config defs.store-verity;
+                "11-store" = copyFromRepartOutput config defs.store;
               };
             }
           )
@@ -149,7 +177,6 @@ let
 
   updatePayload =
     let
-      updateBase = updateConfig.config.image.baseName;
       version = updateConfig.config.system.image.version;
       ukiFile = updateConfig.config.system.boot.loader.ukiFile;
     in
@@ -160,17 +187,19 @@ let
       ''
         mkdir -p $out
         cp \
-          "${updateImage}/${updateBase}.store.raw.zst" \
-          "${updateImage}/${updateBase}.store-verity.raw.zst" \
+          "${updatePartitions}"/*.store_*.raw.zst \
+          "${updatePartitions}"/*.store-verity_*.raw.zst \
           $out
         zstd -1 "${ukiDrv}/${ukiFile}" -o "$out/${ukiFile}.zst"
       '';
+
+  getSshUrl = "\${1:-\${DEVICE_URL:?Error: ssh url was not provided as an argument and DEVICE_URL was unset.}}";
 
   activate-overlay = pkgs.writeShellApplication {
     name = "activate-overlay";
     runtimeInputs = [ pkgs.openssh ];
     text = ''
-      ssh "${hostUrl}" "systemctl start nix-store-overlay"
+      ssh "${getSshUrl}" "systemctl start nix-store-overlay"
     '';
   };
 
@@ -178,7 +207,7 @@ let
     name = "deactivate-overlay";
     runtimeInputs = [ pkgs.openssh ];
     text = ''
-      ssh "${hostUrl}" "systemctl stop nix-store-overlay"
+      ssh "${getSshUrl}" "systemctl stop nix-store-overlay"
     '';
   };
 
@@ -186,7 +215,7 @@ let
     name = "clear-overlay";
     runtimeInputs = [ pkgs.openssh ];
     text = ''
-      ssh "${hostUrl}" "rm -rf /var/nix/upper"
+      ssh "${getSshUrl}" "rm -rf /var/nix/upper"
     '';
   };
 
@@ -197,50 +226,105 @@ let
       pkgs.openssh
     ];
     text = ''
-      set -euo pipefail
-      scp -r "${updatePayload}" "${hostUrl}:/var/updates/"
-      ssh "${hostUrl}" "systemd-sysupdate update --reboot"
+      hostUrl=${getSshUrl};
+      scp -r "${updatePayload}" "''${hostUrl}:/var/updates/"
+      ssh "''${hostUrl}" "systemd-sysupdate update --reboot"
     '';
   };
 
+  # Activates the overlay and deploys the `updateToplevel` closure using rsync.
+  #
+  # switch-to-configuration is ran as a transient systemd unit on the host so it
+  # keeps running if switch-to-configuration restarts sshd.
   deploy-overlay = pkgs.writeShellApplication {
     name = "deploy-overlay";
     runtimeInputs = [
+      pkgs.coreutils
       pkgs.nix
       pkgs.openssh
+      pkgs.rsync
     ];
     text = ''
-      set -euo pipefail
-      nix \
-        --extra-experimental-features "nix-command flakes" \
-        copy --to "ssh://${hostUrl}?remote-store=/var/nix/upper" "${updateToplevel}"
-      ssh "${hostUrl}" '
-        set -euo pipefail
-        systemctl start nix-store-overlay
-        ${updateToplevel}/bin/switch-to-configuration test
-      '
+      hostUrl=${getSshUrl};
+
+      ssh "''${hostUrl}" "systemctl start nix-store-overlay"
+
+      nix --extra-experimental-features "nix-command flakes" \
+        path-info -r "${overlayToplevel}" \
+      | rsync \
+        --archive \
+        --recursive \
+        --info=progress2 \
+        --compress \
+        --compress-choice=zstd \
+        --files-from=- \
+        --relative \
+        --ignore-existing \
+        / "''${hostUrl}:/"
+
+      ssh "''${hostUrl}" "
+        systemd-run --no-block --remain-after-exit \
+          --unit=deploy-overlay-switch \
+          ${overlayToplevel}/bin/switch-to-configuration test
+      "
+
+      timeout=300
+      elapsed=0
+      while true; do
+        state=$(ssh -o ConnectTimeout=5 "''${hostUrl}" \
+          'systemctl is-active deploy-overlay-switch.service' || true)
+        case "$state" in
+          active) break ;;
+          failed)
+            echo "deploy-overlay: switch failed" >&2
+            ssh "''${hostUrl}" \
+              'journalctl -u deploy-overlay-switch.service --no-pager -o cat' >&2
+            exit 1
+            ;;
+          *) ;;
+        esac
+        if [ "$elapsed" -ge "$timeout" ]; then
+          echo "deploy-overlay: switch timed out after ''${timeout}s (last state: ''${state:-unknown})" >&2
+          ssh "''${hostUrl}" \
+            'journalctl -u deploy-overlay-switch.service --no-pager -o cat --since "-1min ago"' >&2
+          exit 1
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+      done
     '';
   };
 
-  fullImage = fullConfig.config.system.build.image;
-  updateImage = updateConfig.config.system.build.image;
-  installerImage = installerConfig.config.system.build.image;
+  fullPartitions = fullConfig.config.system.build.image;
+  updatePartitions = updateConfig.config.system.build.image;
+  installerPartitions = installerConfig.config.system.build.image;
 
+  fullImage = "${fullPartitions}/${fullConfig.config.image.filePath}";
+  installerImage = "${installerPartitions}/${fullConfig.config.image.filePath}";
+
+  fullToplevel = fullConfig.config.system.build.toplevel;
   updateToplevel = updateConfig.config.system.build.toplevel;
+  installerToplevel = installerConfig.config.system.build.toplevel;
+  overlayToplevel = overlayConfig.config.system.build.toplevel;
   ukiDrv = updateConfig.config.system.build.uki;
 in
 {
   inherit
+    fullPartitions
+    installerPartitions
+    updatePartitions
+
     fullImage
     installerImage
-    updateImage
-
     updatePayload
+
+    fullToplevel
+    installerToplevel
     updateToplevel
+    overlayToplevel
 
     flash-to-device
     flash-installer-to-device
-
     activate-overlay
     deactivate-overlay
     clear-overlay

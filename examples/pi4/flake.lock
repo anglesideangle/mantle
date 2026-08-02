@@ -7,8 +7,8 @@
         ]
       },
       "locked": {
-        "lastModified": 1785044365,
-        "narHash": "sha256-wW7PRye/RdFetNonGQkZbGSBJnTrqaAlH4GeSHXcpdQ=",
+        "lastModified": 1785635805,
+        "narHash": "sha256-yEozz1rPoVYJI1yYjaLtmSjx7z/sIUfBNhLKoAinntM=",
         "path": "/home/asa/Projects/mantle",
         "type": "path"
       },
@@ -24,11 +24,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1784723954,
-        "narHash": "sha256-1CfD8ZUjCkTgjsneLZ/lxCHhgDfqxxE7/GX0MmsgiqA=",
+        "lastModified": 1785232496,
+        "narHash": "sha256-65EQYIRRpTdpH8lUiB6Mvo5uBkG60aBIzAJuALfx+O0=",
         "owner": "nixos",
         "repo": "nixos-hardware",
-        "rev": "a017f5b72210026af5b3ac5949f08d94380a6fbd",
+        "rev": "2e790b0a6be8ec2b76174ac0931b8ff11919ec98",
         "type": "github"
       },
       "original": {
@@ -39,16 +39,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1784952766,
-        "narHash": "sha256-WR4pi48ecuyS4piK8tx9WOg3bLwCDXQ5ihOPMZ+gIIE=",
+        "lastModified": 1785626905,
+        "narHash": "sha256-bz+s0W3nu5xndH2yEVo6eCjEZxgPVnh02noFoON90+M=",
         "owner": "anglesideangle",
         "repo": "nixpkgs",
-        "rev": "be5fbdd94f1b07a5a708ea4d97340e79c86bd77d",
+        "rev": "111bee7ddf0bdbda3eb7aad819072891612305b0",
         "type": "github"
       },
       "original": {
         "owner": "anglesideangle",
-        "ref": "userborn-cross-compilation",
+        "ref": "fix-repart-formatting",
         "repo": "nixpkgs",
         "type": "github"
       }

@@ -1,32 +1,49 @@
 {
   lib,
   config,
+  pkgs,
   ...
 }:
-with lib;
 let
   cfg = config.partitions;
+
+  inherit (lib) mkDefault mkForce mkIf;
 in
 {
   config = mkIf cfg.enable {
-    system.nixos-init.enable = true;
+    system.image.id = config.system.name;
+    system.image.version = config.system.version;
 
+    boot.uki.name = config.system.name;
+    boot.uki.version = config.system.version;
+
+    system.nixos-init.enable = true;
     boot.initrd.systemd.enable = true;
+
+    boot.loader.grub.enable = false;
+    boot.loader.systemd-boot.enable = true;
+
     system.etc.overlay.enable = true;
     system.etc.overlay.mutable = false;
+
     systemd.sysusers.enable = false;
     services.userborn.enable = true;
-    services.userborn.static = true;
+    services.userborn.static = mkDefault true;
+    system.switch.enable = mkDefault false;
+
     boot.tmp.useTmpfs = true;
 
-    system.tools.nixos-generate-config.enable = false;
-    boot.loader.grub.enable = false;
-
-    security.sudo.enable = false;
+    # can't create /usr/bin/env on immutable /usr
+    environment.usrbinenv = mkForce null;
 
     nix.enable = false;
+    system.disableInstallerTools = true;
 
-    system.switch.enable = mkDefault false;
+    security.account-utils.enable = true;
+    security.enableWrappers = false;
+    security.sudo.enable = false;
+
+    networking.useNetworkd = mkDefault true;
 
     boot.supportedFilesystems = mkDefault [
       "erofs"
@@ -61,8 +78,17 @@ in
         options = [
           "bind"
           "ro"
+          "nodev"
+          "nosuid"
         ];
       };
+    };
+
+    # Ensure the /nix/store bind mount is unmounted before
+    # systemd-veritysetup@usr.service stops during shutdown, otherwise the
+    # verity device is still in use and deactivation fails.
+    systemd.services."systemd-veritysetup@usr" = {
+      serviceConfig.ExecStopPre = "${pkgs.util-linux}/bin/umount /nix/store || true";
     };
   };
 }

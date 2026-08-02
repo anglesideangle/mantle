@@ -1,6 +1,7 @@
 {
   inputs = {
-    nixpkgs.url = "github:anglesideangle/nixpkgs/userborn-cross-compilation";
+    # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:anglesideangle/nixpkgs?ref=fix-repart-formatting";
     mantle = {
       url = "path:/home/asa/Projects/mantle";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -33,12 +34,12 @@
         mantle.lib.init pkgsFor.${system} {
           # pkgs = pkgsFor.${system};
           modules = [
-            nixos-hardware.nixosModules.raspberry-pi-4
+            # nixos-hardware.nixosModules.raspberry-pi-4
             {
               nixpkgs = {
                 buildPlatform = system;
-                hostPlatform = "aarch64-linux";
-                # hostPlatform = "x86_64-linux";
+                # hostPlatform = "aarch64-linux";
+                hostPlatform = "x86_64-linux";
               };
 
               partitions = {

@@ -1,7 +1,8 @@
 {
   description = "A platform for robotics applications";
 
-  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+  # inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+  inputs.nixpkgs.url = "github:anglesideangle/nixpkgs?ref=fix-repart-formatting";
 
   outputs =
     {
@@ -31,9 +32,13 @@
       );
 
       templates = {
-        basic = {
+        pi4 = {
           path = ./examples/pi4;
           description = "pi4 minimal template";
+        };
+        orin = {
+          path = ./examples/orin;
+          description = "jetson orin minimal template";
         };
       };
 
