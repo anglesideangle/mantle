@@ -2,7 +2,7 @@
   description = "A platform for robotics applications";
 
   # inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-  inputs.nixpkgs.url = "github:anglesideangle/nixpkgs?ref=fix-repart-formatting";
+  inputs.nixpkgs.url = "github:anglesideangle/nixpkgs/fix-repart-formatting";
 
   outputs =
     {
@@ -19,7 +19,7 @@
       pkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system});
     in
     {
-      lib.init = import ./lib self.nixosModules.default;
+      lib.init = import ./.;
 
       nixosModules.default = import ./modules;
 

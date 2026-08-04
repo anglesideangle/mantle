@@ -7,7 +7,11 @@
 let
   cfg = config.partitions;
 
-  inherit (lib) mkDefault mkForce mkIf;
+  inherit (lib)
+    mkDefault
+    mkForce
+    mkIf
+    ;
 in
 {
   config = mkIf cfg.enable {
@@ -19,9 +23,6 @@ in
 
     system.nixos-init.enable = true;
     boot.initrd.systemd.enable = true;
-
-    boot.loader.grub.enable = false;
-    boot.loader.systemd-boot.enable = true;
 
     system.etc.overlay.enable = true;
     system.etc.overlay.mutable = false;
@@ -51,9 +52,12 @@ in
     ];
 
     fileSystems = {
-      "/" = mkDefault {
+      "/" = {
         fsType = "tmpfs";
-        options = [ "mode=755" ];
+        options = [
+          "mode=755"
+          "nosuid"
+        ];
       };
 
       "/var" = {
@@ -62,24 +66,32 @@ in
         neededForBoot = true;
         options = [
           "noatime"
-          "data=journal"
+          "nosuid"
+          "nodev"
+          "noexec"
         ];
       };
 
-      "/boot" = mkDefault {
+      "/boot" = {
         device = "/dev/disk/by-partlabel/${cfg.esp.label}";
         fsType = cfg.esp.format;
+        options = [
+          "nosuid"
+          "nodev"
+          "noexec"
+        ];
       };
 
-      "/nix/store" = mkDefault {
+      "/nix/store" = {
         device = "/usr/nix/store";
         fsType = "none";
         neededForBoot = true;
         options = [
           "bind"
           "ro"
-          "nodev"
           "nosuid"
+          "nodev"
+          "umask=077"
         ];
       };
     };

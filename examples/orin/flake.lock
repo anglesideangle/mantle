@@ -12,11 +12,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1768505959,
-        "narHash": "sha256-oFCx/ApQ+S1/apUKWsvT9vq+Eo1m2vINWEDkW7/nckA=",
+        "lastModified": 1779836515,
+        "narHash": "sha256-X/AwJZeTjxetRM7JG2BXeffKa1PIg/uo8AP5TX/+kb0=",
         "owner": "nixos-cuda",
         "repo": "cuda-legacy",
-        "rev": "86ad7e2c2e314f0234539cbbc66b5cd7746bcd32",
+        "rev": "baf22622e1114bb36412e5cebe2303f302edb882",
         "type": "github"
       },
       "original": {
@@ -33,11 +33,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1778865657,
-        "narHash": "sha256-86LL1b7XORuf8nriwEFxoH0fjEsIrhf+y7oWyAU/EKQ=",
+        "lastModified": 1785439247,
+        "narHash": "sha256-NSwtPEFxHlN7+l/dX0H+9bN/fOol+Tjurdq2P1v1Gyk=",
         "owner": "anduril",
         "repo": "jetpack-nixos",
-        "rev": "a8c6026cf36cd33af69034ff1d3ac98221411c9d",
+        "rev": "4d857d6da48c420da39964b6fb7ba23a958abad3",
         "type": "github"
       },
       "original": {
@@ -54,8 +54,8 @@
         ]
       },
       "locked": {
-        "lastModified": 1783893059,
-        "narHash": "sha256-RFP6sW7+FwWTxHRSbVdmtfGxgMSAuwTNFbYvHRPuicI=",
+        "lastModified": 1785717546,
+        "narHash": "sha256-zp1g7qrL0SUSwu0MwnBQ/xEMUtvtaOs/Ai44IU85GcQ=",
         "path": "/home/asa/Projects/mantle",
         "type": "path"
       },
@@ -66,16 +66,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1778737229,
-        "narHash": "sha256-6xWoytx8jFW4PF1GjRm/i/53trbpKGfz6zjzQGBr4cI=",
-        "owner": "nixos",
+        "lastModified": 1785626905,
+        "narHash": "sha256-bz+s0W3nu5xndH2yEVo6eCjEZxgPVnh02noFoON90+M=",
+        "owner": "anglesideangle",
         "repo": "nixpkgs",
-        "rev": "d7a713c0b7e47c908258e71cba7a2d77cc8d71d5",
+        "rev": "111bee7ddf0bdbda3eb7aad819072891612305b0",
         "type": "github"
       },
       "original": {
-        "owner": "nixos",
-        "ref": "nixos-25.11",
+        "owner": "anglesideangle",
+        "ref": "fix-repart-formatting",
         "repo": "nixpkgs",
         "type": "github"
       }

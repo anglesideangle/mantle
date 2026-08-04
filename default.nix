@@ -1,4 +1,4 @@
-mantleModule: pkgs: args:
+pkgs: args:
 let
   inherit (pkgs) lib;
 
@@ -51,7 +51,7 @@ let
   baseConfig = import "${pkgs.path}/nixos/lib/eval-config.nix" (
     {
       system = null;
-      modules = (args.modules or [ ]) ++ [ mantleModule ];
+      modules = (args.modules or [ ]) ++ [ ./modules/default.nix ];
     }
     // removeAttrs args [ "modules" ]
   );
@@ -105,8 +105,8 @@ let
         in
         {
           fileSystems."/var" = {
+            device = lib.mkForce "none";
             fsType = lib.mkForce "tmpfs";
-            options = lib.mkForce [ "noatime" ];
           };
 
           environment.systemPackages = [

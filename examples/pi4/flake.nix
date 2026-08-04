@@ -1,7 +1,7 @@
 {
   inputs = {
     # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    nixpkgs.url = "github:anglesideangle/nixpkgs?ref=fix-repart-formatting";
+    nixpkgs.url = "github:anglesideangle/nixpkgs/fix-repart-formatting";
     mantle = {
       url = "path:/home/asa/Projects/mantle";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -32,14 +32,12 @@
       packages = forAllSystems (
         system:
         mantle.lib.init pkgsFor.${system} {
-          # pkgs = pkgsFor.${system};
           modules = [
-            # nixos-hardware.nixosModules.raspberry-pi-4
+            nixos-hardware.nixosModules.raspberry-pi-4
             {
               nixpkgs = {
                 buildPlatform = system;
-                # hostPlatform = "aarch64-linux";
-                hostPlatform = "x86_64-linux";
+                hostPlatform = "aarch64-linux";
               };
 
               partitions = {
@@ -50,9 +48,8 @@
                 var.size = "5G";
               };
 
-              system.image.id = "mantle-pi";
-              system.image.version = self.shortRev or "dev";
-              boot.uki.name = "mantle-pi";
+              system.name = "mantle-pi";
+              system.version = "${toString self.lastModified}-${self.shortRev or "dev"}";
               networking.hostName = "mantle-pi";
             }
           ];
@@ -72,6 +69,7 @@
           flash-installer-to-device = mkApp self.packages.${system}.flash-installer-to-device;
           activate-overlay = mkApp self.packages.${system}.activate-overlay;
           deactivate-overlay = mkApp self.packages.${system}.deactivate-overlay;
+          clear-overlay = mkApp self.packages.${system}.clear-overlay;
           deploy-update = mkApp self.packages.${system}.deploy-update;
           deploy-overlay = mkApp self.packages.${system}.deploy-overlay;
         }

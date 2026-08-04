@@ -1,6 +1,7 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+    # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:anglesideangle/nixpkgs/fix-repart-formatting";
     mantle = {
       url = "path:/home/asa/Projects/mantle";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -29,109 +30,134 @@
 
       inherit (nixpkgs) lib;
 
-      orinModules = buildPlatform: [
-        jetpack.nixosModules.default
-        (
-          { lib, ... }:
-          let
-            inherit (lib.kernel) yes module;
-          in
-          {
-            nixpkgs = {
-              inherit buildPlatform;
-              hostPlatform = {
-                system = "aarch64-linux";
-                gcc.arch = "armv8.2-a";
-                gcc.tune = "cortex-a78ae";
-              };
-              overlays = [
-                (final: prev: {
-                  config =
-                    prev.config
-                    // (
-                      if prev.stdenv.hostPlatform.isAarch64 then
-                        { }
-                      else
-                        {
-                          cudaSupport = false;
-                          cudaCapabilities = [ ];
-                        }
-                    );
-                })
-              ];
-            };
+      deviceIP = "192.168.1.50";
 
-            boot.kernelPatches = [
+      mantleLibFor = forAllSystems (
+        buildPlatform:
+        mantle.lib.init pkgsFor.${buildPlatform} {
+          modules = [
+            jetpack.nixosModules.default
+            (
+              { lib, ... }:
+              let
+                inherit (lib.kernel) yes module;
+              in
               {
-                name = "enable-erofs";
-                patch = null;
-                structuredExtraConfig = {
-                  EROFS_FS = yes;
-
-                  EROFS_FS_XATTR = yes;
-                  EROFS_FS_POSIX_ACL = yes;
-                  EROFS_FS_SECURITY = yes;
-
-                  EROFS_FS_ZIP = yes;
+                nixpkgs = {
+                  inherit buildPlatform;
+                  hostPlatform = {
+                    system = "aarch64-linux";
+                    gcc.arch = "armv8.2-a";
+                    gcc.tune = "cortex-a78ae";
+                  };
+                  overlays = [
+                    (final: prev: {
+                      config =
+                        prev.config
+                        // (
+                          if prev.stdenv.hostPlatform.isAarch64 then
+                            { }
+                          else
+                            {
+                              cudaSupport = false;
+                              cudaCapabilities = [ ];
+                            }
+                        );
+                    })
+                  ];
                 };
-              }
-              {
-                name = "enable-tpm-crb";
-                patch = null;
-                structuredExtraConfig = {
-                  TCG_TPM = yes;
-                  TCG_TIS_CORE = yes;
-                  TCG_CRB = module;
-                  TCG_TIS = module;
+
+                system.nixos-init.enable = lib.mkForce false;
+                system.etc.overlay.enable = lib.mkForce false;
+
+                boot.kernelPatches = [
+                  {
+                    name = "enable-erofs";
+                    patch = null;
+                    structuredExtraConfig = {
+                      EROFS_FS = yes;
+
+                      EROFS_FS_XATTR = yes;
+                      EROFS_FS_POSIX_ACL = yes;
+                      EROFS_FS_SECURITY = yes;
+
+                      EROFS_FS_ZIP = yes;
+                    };
+                  }
+                  {
+                    name = "enable-tpm-crb";
+                    patch = null;
+                    structuredExtraConfig = {
+                      TCG_TPM = yes;
+                      TCG_TIS_CORE = yes;
+                      TCG_CRB = module;
+                      TCG_TIS = module;
+                    };
+                  }
+                ];
+
+                hardware.nvidia-jetpack.enable = true;
+                hardware.nvidia-jetpack.som = "orin-agx";
+                hardware.nvidia-jetpack.carrierBoard = "devkit";
+
+                hardware.graphics.enable = true;
+
+                hardware.nvidia-jetpack.kernel.realtime = true;
+
+                # jetson orin supports uefi
+                boot.loader.systemd-boot.enable = true;
+
+                partitions = {
+                  enable = true;
+                  esp.size = "128M";
+                  store.size = "5G";
+                  store-verity.size = "275M";
+                  var.size = "5G";
                 };
+
+                system.name = "mantle-orin";
+                system.version = "${toString self.lastModified}-${self.shortRev or "dev"}";
+                networking.hostName = "mantle-orin";
+
+                boot.initrd.systemd.emergencyAccess = true;
+                users.users.root.password = "";
+
+                networking = {
+                  useDHCP = false;
+                  interfaces."eth0" = {
+                    useDHCP = false;
+                    ipv4.addresses = [
+                      {
+                        address = deviceIP;
+                        prefixLength = 24;
+                      }
+                    ];
+                  };
+                };
+
+                services.openssh = {
+                  enable = true;
+                  settings.PasswordAuthentication = true;
+                };
+
               }
-            ];
-
-            hardware.nvidia-jetpack.enable = true;
-            hardware.nvidia-jetpack.som = "orin-agx";
-            hardware.nvidia-jetpack.carrierBoard = "devkit";
-
-            hardware.graphics.enable = true;
-
-            hardware.nvidia-jetpack.kernel.realtime = true;
-
-            system.nixos-init.enable = lib.mkForce false;
-            system.etc.overlay.enable = lib.mkForce false;
-
-            partitions = {
-              enable = true;
-              esp.size = "256M";
-              store.size = "10G";
-              var.size = "2G";
-            };
-
-            system.image.id = "imageid";
-            system.image.version = self.shortRev or "dev";
-            boot.uki.name = "ukiname";
-            networking.hostName = "mantle-target";
-
-            boot.initrd.systemd.emergencyAccess = true;
-            users.users.root.password = "password";
-          }
-        )
-      ];
+            )
+          ];
+        }
+      );
     in
     {
-      packages =
-        lib.recursiveUpdate
-          (forAllSystems (
-            buildPlatform:
-            mantle.lib.init {
-              pkgs = pkgsFor.${buildPlatform};
-              modules = orinModules buildPlatform;
-              updateVersion = self.shortRev or "dev";
-            }
-          ))
-          {
-            "x86_64-linux" = {
-              inherit (jetpack.packages."x86_64-linux") flash-orin-agx-devkit;
-            };
-          };
+      packages = lib.recursiveUpdate (forAllSystems (system: mantleLibFor.${system})) {
+        "x86_64-linux" = {
+          inherit (jetpack.packages."x86_64-linux") flash-orin-agx-devkit;
+        };
+      };
+
+      devShells = forAllSystems (system: {
+        default = pkgsFor.${system}.mkShellNoCC {
+          DEVICE_URL = "root@${deviceIP}";
+        };
+      });
 
       apps =
         let
@@ -146,6 +172,7 @@
             flash-installer-to-device = mkApp self.packages.${system}.flash-installer-to-device;
             activate-overlay = mkApp self.packages.${system}.activate-overlay;
             deactivate-overlay = mkApp self.packages.${system}.deactivate-overlay;
+            clear-overlay = mkApp self.packages.${system}.clear-overlay;
             deploy-update = mkApp self.packages.${system}.deploy-update;
             deploy-overlay = mkApp self.packages.${system}.deploy-overlay;
           }))

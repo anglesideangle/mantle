@@ -9,7 +9,16 @@ let
   image1Version = "1";
   image2Version = "2";
 
-  tuning = {
+  deviceConfig = {
+    nixpkgs = { inherit (pkgs.stdenv) hostPlatform buildPlatform; };
+
+    boot.loader.systemd-boot.enable = true;
+
+    boot.initrd.availableKernelModules = [
+      "virtio_pci"
+      "virtio_blk"
+    ];
+
     partitions = {
       enable = true;
       esp.size = "64M";
@@ -20,27 +29,10 @@ let
     system.name = imageName;
   };
 
-  x86 =
-    {
-      lib,
-      ...
-    }:
-    {
-      nixpkgs = {
-        hostPlatform = lib.mkDefault "x86_64-linux";
-        buildPlatform = lib.mkDefault "x86_64-linux";
-      };
-      boot.initrd.availableKernelModules = [
-        "virtio_pci"
-        "virtio_blk"
-      ];
-    };
-
   m1 = self.lib.init pkgs {
     modules = [
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
-      tuning
-      x86
+      deviceConfig
       { system.version = image1Version; }
     ];
   };
@@ -48,8 +40,7 @@ let
   m2 = self.lib.init pkgs {
     modules = [
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
-      tuning
-      x86
+      deviceConfig
       { system.version = image2Version; }
     ];
   };
