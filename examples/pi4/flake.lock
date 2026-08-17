@@ -7,8 +7,8 @@
         ]
       },
       "locked": {
-        "lastModified": 1785699809,
-        "narHash": "sha256-CVWGLbwlAp3I3/3/C+Re4jXr/gRm8yQbtiThqJgYF8E=",
+        "lastModified": 1786909204,
+        "narHash": "sha256-TwFRErcxPQGA5VppSEim+lFZQ3l7hbtfHLdJpk/Mp0c=",
         "path": "/home/asa/Projects/mantle",
         "type": "path"
       },
@@ -24,11 +24,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785232496,
-        "narHash": "sha256-65EQYIRRpTdpH8lUiB6Mvo5uBkG60aBIzAJuALfx+O0=",
+        "lastModified": 1786867632,
+        "narHash": "sha256-ez+ubZlA1RtdjCB18a6zJ9M4u8qoPDy08EcnsW5M3Xw=",
         "owner": "nixos",
         "repo": "nixos-hardware",
-        "rev": "2e790b0a6be8ec2b76174ac0931b8ff11919ec98",
+        "rev": "ff17823245ab9ff7bcae6acf950bd89cba82c38c",
         "type": "github"
       },
       "original": {
@@ -39,16 +39,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1785626905,
-        "narHash": "sha256-bz+s0W3nu5xndH2yEVo6eCjEZxgPVnh02noFoON90+M=",
-        "owner": "anglesideangle",
+        "lastModified": 1786862985,
+        "narHash": "sha256-FBJRXmbGXiSUDvYEbfLYRkckayyZ6SK1UEqhCrIZ2Cs=",
+        "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "111bee7ddf0bdbda3eb7aad819072891612305b0",
+        "rev": "e5bdc4a41d4c072fe1e3787eaa0320a384741d44",
         "type": "github"
       },
       "original": {
-        "owner": "anglesideangle",
-        "ref": "fix-repart-formatting",
+        "owner": "nixos",
+        "ref": "nixos-unstable",
         "repo": "nixpkgs",
         "type": "github"
       }

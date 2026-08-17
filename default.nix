@@ -4,8 +4,7 @@ let
 
   # Creates a new repart definition containing instructions for systemd-repart
   # to copy from the path of the specified original `partition` in the nix
-  # store. The resulting partition will have the same content and attributes as
-  # the original.
+  # store.
   copyFromRepartOutput =
     config: partition:
     let
@@ -34,8 +33,7 @@ let
     };
 
   # Creates a new repart definition containing instructions for systemd-repart
-  # to copy from the path of the specified original `partition` on the disk. The
-  # resulting partition will have the same content and attributes as the original.
+  # to copy from the path of the specified original `partition` on the disk.
   copyFromPartition = partition: {
     repartConfig =
       removeAttrs partition.repartConfig [
@@ -88,9 +86,13 @@ let
   overlayConfig = baseConfig.extendModules {
     modules = [
       ({ lib, config, ... }: {
-        system.image.version = lib.mkForce "${config.system.version}~overlay";
-        system.switch.enable = true;
-        services.userborn.static = false;
+        system.image.version = lib.mkForce "${config.mantle.version}~overlay";
+        assertions = [
+          {
+            assertion = config.mantle.overlay.enable;
+            message = "the overlay extension cannot be used when the mantle overlay is not enabled.";
+          }
+        ];
       })
     ];
   };
@@ -195,11 +197,18 @@ let
 
   getSshUrl = "\${1:-\${DEVICE_URL:?Error: ssh url was not provided as an argument and DEVICE_URL was unset.}}";
 
+  getSshOpts = ''
+    sshOpts=()
+    sshKey="''${2:-''${SSH_KEY:-}}"
+    if [ -n "$sshKey" ]; then sshOpts+=(-i "$sshKey"); fi
+  '';
+
   activate-overlay = pkgs.writeShellApplication {
     name = "activate-overlay";
     runtimeInputs = [ pkgs.openssh ];
     text = ''
-      ssh "${getSshUrl}" "systemctl start nix-store-overlay"
+      ${getSshOpts}
+      ssh "''${sshOpts[@]}" "${getSshUrl}" "systemctl start nix-store-overlay"
     '';
   };
 
@@ -207,7 +216,8 @@ let
     name = "deactivate-overlay";
     runtimeInputs = [ pkgs.openssh ];
     text = ''
-      ssh "${getSshUrl}" "systemctl stop nix-store-overlay"
+      ${getSshOpts}
+      ssh "''${sshOpts[@]}" "${getSshUrl}" "systemctl stop nix-store-overlay"
     '';
   };
 
@@ -215,7 +225,8 @@ let
     name = "clear-overlay";
     runtimeInputs = [ pkgs.openssh ];
     text = ''
-      ssh "${getSshUrl}" "rm -rf /var/nix/upper"
+      ${getSshOpts}
+      ssh "''${sshOpts[@]}" "${getSshUrl}" "rm -rf /var/nix/upper"
     '';
   };
 
@@ -226,16 +237,13 @@ let
       pkgs.openssh
     ];
     text = ''
-      hostUrl=${getSshUrl};
-      scp -r "${updatePayload}" "''${hostUrl}:/var/updates/"
-      ssh "''${hostUrl}" "systemd-sysupdate update --reboot"
+      ${getSshOpts}
+      scp -r "''${sshOpts[@]}" "${updatePayload}" "${getSshUrl}:/var/updates/"
+      ssh "''${sshOpts[@]}" "${getSshUrl}" "systemd-sysupdate update --reboot"
     '';
   };
 
   # Activates the overlay and deploys the `updateToplevel` closure using rsync.
-  #
-  # switch-to-configuration is ran as a transient systemd unit on the host so it
-  # keeps running if switch-to-configuration restarts sshd.
   deploy-overlay = pkgs.writeShellApplication {
     name = "deploy-overlay";
     runtimeInputs = [
@@ -246,8 +254,9 @@ let
     ];
     text = ''
       hostUrl=${getSshUrl};
+      ${getSshOpts}
 
-      ssh "''${hostUrl}" "systemctl start nix-store-overlay"
+      ssh "''${sshOpts[@]}" "''${hostUrl}" "systemctl start nix-store-overlay"
 
       nix --extra-experimental-features "nix-command flakes" \
         path-info -r "${overlayToplevel}" \
@@ -260,9 +269,10 @@ let
         --files-from=- \
         --relative \
         --ignore-existing \
+        -e "ssh ''${sshOpts[*]:-}" \
         / "''${hostUrl}:/"
 
-      ssh "''${hostUrl}" "
+      ssh "''${sshOpts[@]}" "''${hostUrl}" "
         systemd-run --no-block --remain-after-exit \
           --unit=deploy-overlay-switch \
           ${overlayToplevel}/bin/switch-to-configuration test
@@ -271,13 +281,13 @@ let
       timeout=300
       elapsed=0
       while true; do
-        state=$(ssh -o ConnectTimeout=5 "''${hostUrl}" \
+        state=$(ssh -o ConnectTimeout=5 "''${sshOpts[@]}" "''${hostUrl}" \
           'systemctl is-active deploy-overlay-switch.service' || true)
         case "$state" in
           active) break ;;
           failed)
             echo "deploy-overlay: switch failed" >&2
-            ssh "''${hostUrl}" \
+            ssh "''${sshOpts[@]}" "''${hostUrl}" \
               'journalctl -u deploy-overlay-switch.service --no-pager -o cat' >&2
             exit 1
             ;;
@@ -285,7 +295,7 @@ let
         esac
         if [ "$elapsed" -ge "$timeout" ]; then
           echo "deploy-overlay: switch timed out after ''${timeout}s (last state: ''${state:-unknown})" >&2
-          ssh "''${hostUrl}" \
+          ssh "''${sshOpts[@]}" "''${hostUrl}" \
             'journalctl -u deploy-overlay-switch.service --no-pager -o cat --since "-1min ago"' >&2
           exit 1
         fi

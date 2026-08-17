@@ -21,15 +21,17 @@ let
         "virtio_blk"
       ];
 
-      partitions = {
+      mantle = {
         enable = true;
-        esp.size = "64M";
-        store.size = "1024M";
-        store-verity.size = "64M";
-        var.size = "128M";
+        name = imageName;
+        overlay.enable = true;
+        partitions = {
+          esp.size = "64M";
+          store.size = "1024M";
+          store-verity.size = "64M";
+          var.size = "128M";
+        };
       };
-
-      system.name = imageName;
 
       services.openssh = {
         enable = true;
@@ -63,8 +65,8 @@ let
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
       deviceConfig
       ({ lib, ... }: {
-        system.version = image1Version;
-        partitions.var.size = lib.mkForce "2048M";
+        mantle.version = image1Version;
+        mantle.partitions.var.size = lib.mkForce "2048M";
       })
     ];
   };
@@ -74,7 +76,7 @@ let
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
       deviceConfig
       ({ lib, ... }: {
-        system.version = image2Version;
+        mantle.version = image2Version;
         networking.hostName = "device";
         services.userborn.static = lib.mkForce false;
       })

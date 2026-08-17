@@ -1,8 +1,7 @@
 {
   description = "A platform for robotics applications";
 
-  # inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-  inputs.nixpkgs.url = "github:anglesideangle/nixpkgs/fix-repart-formatting";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
 
   outputs =
     {

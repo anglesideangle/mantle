@@ -5,7 +5,7 @@
   ...
 }:
 let
-  cfg = config.partitions;
+  cfg = config.mantle;
 
   inherit (lib)
     mkDefault
@@ -15,11 +15,11 @@ let
 in
 {
   config = mkIf cfg.enable {
-    system.image.id = config.system.name;
-    system.image.version = config.system.version;
+    system.image.id = cfg.name;
+    system.image.version = cfg.version;
 
-    boot.uki.name = config.system.name;
-    boot.uki.version = config.system.version;
+    boot.uki.name = cfg.name;
+    boot.uki.version = cfg.version;
 
     system.nixos-init.enable = true;
     boot.initrd.systemd.enable = true;
@@ -29,15 +29,16 @@ in
 
     systemd.sysusers.enable = false;
     services.userborn.enable = true;
-    services.userborn.static = mkDefault true;
-    system.switch.enable = mkDefault false;
+
+    services.userborn.static = !cfg.overlay.enable;
+    system.switch.enable = cfg.overlay.enable;
 
     boot.tmp.useTmpfs = true;
 
     # can't create /usr/bin/env on immutable /usr
     environment.usrbinenv = mkForce null;
 
-    nix.enable = false;
+    nix.enable = cfg.overlay.enable;
     system.disableInstallerTools = true;
 
     security.account-utils.enable = true;
@@ -51,50 +52,54 @@ in
       "ext4"
     ];
 
-    fileSystems = {
-      "/" = {
-        fsType = "tmpfs";
-        options = [
-          "mode=755"
-          "nosuid"
-        ];
-      };
+    fileSystems =
+      let
+        inherit (cfg) partitions;
+      in
+      {
+        "/" = {
+          fsType = "tmpfs";
+          options = [
+            "mode=755"
+            "nosuid"
+          ];
+        };
 
-      "/var" = {
-        device = "/dev/disk/by-partlabel/${cfg.var.label}";
-        fsType = cfg.var.format;
-        neededForBoot = true;
-        options = [
-          "noatime"
-          "nosuid"
-          "nodev"
-          "noexec"
-        ];
-      };
+        "/var" = {
+          device = "/dev/disk/by-partlabel/${partitions.var.label}";
+          fsType = partitions.var.format;
+          neededForBoot = true;
+          options = [
+            "noatime"
+            "nosuid"
+            "nodev"
+            "noexec"
+          ];
+        };
 
-      "/boot" = {
-        device = "/dev/disk/by-partlabel/${cfg.esp.label}";
-        fsType = cfg.esp.format;
-        options = [
-          "nosuid"
-          "nodev"
-          "noexec"
-        ];
-      };
+        "/boot" = {
+          device = "/dev/disk/by-partlabel/${partitions.esp.label}";
+          fsType = partitions.esp.format;
+          options = [
+            "nosuid"
+            "nodev"
+            "noexec"
+          ];
+        };
 
-      "/nix/store" = {
-        device = "/usr/nix/store";
-        fsType = "none";
-        neededForBoot = true;
-        options = [
-          "bind"
-          "ro"
-          "nosuid"
-          "nodev"
-          "umask=077"
-        ];
+        "/nix/store" = {
+          device = "/usr/nix/store";
+          fsType = "none";
+          neededForBoot = true;
+          options = [
+            "bind"
+            "ro"
+            "nosuid"
+            "nodev"
+            "umask=077"
+          ];
+        };
       };
-    };
 
     # Ensure the /nix/store bind mount is unmounted before
     # systemd-veritysetup@usr.service stops during shutdown, otherwise the

@@ -13,12 +13,15 @@ with lib;
     "${modulesPath}/profiles/minimal.nix"
   ];
 
-  options = {
-    system.version = mkOption { type = types.str; };
+  options.mantle = {
+    enable = mkEnableOption "enable mantle image partitioning";
+
+    overlay.enable = mkEnableOption "enable overlay";
+
+    name = mkOption { type = types.str; };
+    version = mkOption { type = types.str; };
 
     partitions = {
-      enable = mkEnableOption "partitioning";
-
       esp = {
         label = mkOption {
           type = types.str;

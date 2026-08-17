@@ -8,11 +8,12 @@
 }:
 with lib;
 let
-  cfg = config.partitions;
+  cfg = config.mantle;
+  inherit (cfg) partitions;
   defs = config.system.build._partitionDefs;
 
-  storeLabel = "${cfg.store.label-prefix}_${config.system.image.version}";
-  storeVerityLabel = "${cfg.store-verity.label-prefix}_${config.system.image.version}";
+  storeLabel = "${partitions.store.label-prefix}_${config.system.image.version}";
+  storeVerityLabel = "${partitions.store-verity.label-prefix}_${config.system.image.version}";
 
   partitionTypes = {
     usr =
@@ -66,10 +67,10 @@ in
       esp = {
         repartConfig = {
           Type = partitionTypes.esp;
-          Label = cfg.esp.label;
-          Format = cfg.esp.format;
-          SizeMinBytes = cfg.esp.size;
-          SizeMaxBytes = cfg.esp.size;
+          Label = partitions.esp.label;
+          Format = partitions.esp.format;
+          SizeMinBytes = partitions.esp.size;
+          SizeMaxBytes = partitions.esp.size;
           SplitName = "esp";
         };
         contents.${bootLocation}.source = "${pkgs.systemd}/lib/systemd/boot/efi/systemd-boot${efiArch}.efi";
@@ -80,15 +81,15 @@ in
         repartConfig = {
           Type = partitionTypes.usr;
           Label = storeLabel;
-          Format = cfg.store.format;
+          Format = partitions.store.format;
           # Compression = "zstd";
           Verity = "data";
           VerityMatchKey = "store";
           ReadOnly = "yes";
           Minimize = "off";
           SplitName = "store_%U";
-          SizeMinBytes = cfg.store.size;
-          SizeMaxBytes = cfg.store.size;
+          SizeMinBytes = partitions.store.size;
+          SizeMaxBytes = partitions.store.size;
         };
       };
 
@@ -101,8 +102,8 @@ in
         SplitName = "store-verity_%U";
         # VerityHashBlockSizeBytes = "4096";
         # VerityDataBlockSizeBytes = "4096";
-        SizeMinBytes = cfg.store-verity.size;
-        SizeMaxBytes = cfg.store-verity.size;
+        SizeMinBytes = partitions.store-verity.size;
+        SizeMaxBytes = partitions.store-verity.size;
       };
 
       empty-store.repartConfig = {
@@ -121,21 +122,21 @@ in
 
       var.repartConfig = {
         Type = partitionTypes.var;
-        Format = cfg.var.format;
-        Label = cfg.var.label;
+        Format = partitions.var.format;
+        Label = partitions.var.label;
         Minimize = "off";
         # GrowFileSystem = "yes";
         Weight = "1000";
         FactoryReset = "yes";
       }
-      // optionalAttrs (cfg.var.size != null) {
-        SizeMinBytes = cfg.var.size;
+      // optionalAttrs (partitions.var.size != null) {
+        SizeMinBytes = partitions.var.size;
       };
 
       var-installer.repartConfig = {
         Type = partitionTypes.var;
-        Format = cfg.var.format;
-        Label = cfg.var.label;
+        Format = partitions.var.format;
+        Label = partitions.var.label;
         Minimize = "off";
         # GrowFileSystem = "yes";
         Weight = "1000";

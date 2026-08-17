@@ -5,9 +5,9 @@
   ...
 }:
 let
-  cfg = config.partitions;
-  storePrefix = cfg.store.label-prefix;
-  storeVerityPrefix = cfg.store-verity.label-prefix;
+  cfg = config.mantle;
+  storePrefix = cfg.partitions.store.label-prefix;
+  storeVerityPrefix = cfg.partitions.store-verity.label-prefix;
   sourcePrefix = config.image.repart.name;
 
   partitionTypes = {
@@ -26,58 +26,65 @@ let
   };
 in
 {
-  config.systemd.sysupdate = lib.mkIf cfg.enable {
-    enable = true;
+  config = lib.mkIf cfg.enable {
 
-    transfers = {
-      "10-store" = {
-        Source = {
-          MatchPattern = [ "${sourcePrefix}_@v.store_@u.raw.zst" ];
-          Path = "/var/updates/";
-          Type = "regular-file";
-        };
-        Target = {
-          Type = "partition";
-          Path = "auto";
-          MatchPattern = [ "${storePrefix}_@v" ];
-          MatchPartitionType = partitionTypes.usr;
-          InstancesMax = 2;
-          ReadOnly = "yes";
-        };
-        Transfer = {
-          ProtectVersion = "%A";
-        };
-      };
+    systemd.tmpfiles.rules = [
+      "d /var/updates 0775 root root -"
+    ];
 
-      "20-store-verity" = {
-        Source = {
-          MatchPattern = [ "${sourcePrefix}_@v.store-verity_@u.raw.zst" ];
-          Path = "/var/updates/";
-          Type = "regular-file";
-        };
-        Target = {
-          Type = "partition";
-          Path = "auto";
-          MatchPattern = [ "${storeVerityPrefix}_@v" ];
-          MatchPartitionType = partitionTypes.usr-verity;
-          InstancesMax = 2;
-          ReadOnly = "yes";
-        };
-      };
+    systemd.sysupdate = {
+      enable = true;
 
-      "30-uki" = {
-        Source = {
-          MatchPattern = [ "${config.boot.uki.name}_@v+@t.efi.zst" ];
-          Path = "/var/updates/";
-          Type = "regular-file";
+      transfers = {
+        "10-store" = {
+          Source = {
+            MatchPattern = [ "${sourcePrefix}_@v.store_@u.raw.zst" ];
+            Path = "/var/updates/";
+            Type = "regular-file";
+          };
+          Target = {
+            Type = "partition";
+            Path = "auto";
+            MatchPattern = [ "${storePrefix}_@v" ];
+            MatchPartitionType = partitionTypes.usr;
+            InstancesMax = 2;
+            ReadOnly = "yes";
+          };
+          Transfer = {
+            ProtectVersion = "%A";
+          };
         };
-        Target = {
-          Type = "regular-file";
-          Path = "/EFI/Linux";
-          PathRelativeTo = "boot";
-          MatchPattern = [ "${config.boot.uki.name}_@v+@t.efi" ];
-          Mode = "0444";
-          InstancesMax = 2;
+
+        "20-store-verity" = {
+          Source = {
+            MatchPattern = [ "${sourcePrefix}_@v.store-verity_@u.raw.zst" ];
+            Path = "/var/updates/";
+            Type = "regular-file";
+          };
+          Target = {
+            Type = "partition";
+            Path = "auto";
+            MatchPattern = [ "${storeVerityPrefix}_@v" ];
+            MatchPartitionType = partitionTypes.usr-verity;
+            InstancesMax = 2;
+            ReadOnly = "yes";
+          };
+        };
+
+        "30-uki" = {
+          Source = {
+            MatchPattern = [ "${config.boot.uki.name}_@v+@t.efi.zst" ];
+            Path = "/var/updates/";
+            Type = "regular-file";
+          };
+          Target = {
+            Type = "regular-file";
+            Path = "/EFI/Linux";
+            PathRelativeTo = "boot";
+            MatchPattern = [ "${config.boot.uki.name}_@v+@t.efi" ];
+            Mode = "0444";
+            InstancesMax = 2;
+          };
         };
       };
     };

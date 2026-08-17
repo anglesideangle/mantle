@@ -1,7 +1,6 @@
 {
   inputs = {
-    # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    nixpkgs.url = "github:anglesideangle/nixpkgs/fix-repart-formatting";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     mantle = {
       url = "path:/home/asa/Projects/mantle";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -40,16 +39,19 @@
                 hostPlatform = "aarch64-linux";
               };
 
-              partitions = {
+              mantle = {
                 enable = true;
-                esp.size = "128M";
-                store.size = "5G";
-                store-verity.size = "275M";
-                var.size = "5G";
+                name = "mantle-pi";
+                version = "${toString self.lastModified}-${self.shortRev or "dev"}";
+                overlay.enable = true;
+                partitions = {
+                  esp.size = "128M";
+                  store.size = "5G";
+                  store-verity.size = "275M";
+                  var.size = "5G";
+                };
               };
 
-              system.name = "mantle-pi";
-              system.version = "${toString self.lastModified}-${self.shortRev or "dev"}";
               networking.hostName = "mantle-pi";
             }
           ];

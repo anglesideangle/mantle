@@ -19,21 +19,23 @@ let
       "virtio_blk"
     ];
 
-    partitions = {
+    mantle = {
       enable = true;
-      esp.size = "64M";
-      store.size = "1024M";
-      store-verity.size = "64M";
-      var.size = "128M";
+      name = imageName;
+      partitions = {
+        esp.size = "64M";
+        store.size = "1024M";
+        store-verity.size = "64M";
+        var.size = "128M";
+      };
     };
-    system.name = imageName;
   };
 
   m1 = self.lib.init pkgs {
     modules = [
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
       deviceConfig
-      { system.version = image1Version; }
+      { mantle.version = image1Version; }
     ];
   };
 
@@ -41,7 +43,7 @@ let
     modules = [
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
       deviceConfig
-      { system.version = image2Version; }
+      { mantle.version = image2Version; }
     ];
   };
 in

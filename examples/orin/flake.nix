@@ -1,7 +1,6 @@
 {
   inputs = {
-    # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    nixpkgs.url = "github:anglesideangle/nixpkgs/fix-repart-formatting";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     mantle = {
       url = "path:/home/asa/Projects/mantle";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -32,6 +31,8 @@
 
       deviceIP = "192.168.1.50";
 
+      deviceSshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJyd6eNE/R46/uTnQRpW/StRIaGc5yzO86kWeQNBny+H hello@rickastley.co.uk";
+
       mantleLibFor = forAllSystems (
         buildPlatform:
         mantle.lib.init pkgsFor.${buildPlatform} {
@@ -47,8 +48,8 @@
                   inherit buildPlatform;
                   hostPlatform = {
                     system = "aarch64-linux";
-                    gcc.arch = "armv8.2-a";
-                    gcc.tune = "cortex-a78ae";
+                    # gcc.arch = "armv8.2-a";
+                    # gcc.tune = "cortex-a78ae";
                   };
                   overlays = [
                     (final: prev: {
@@ -107,20 +108,24 @@
                 # jetson orin supports uefi
                 boot.loader.systemd-boot.enable = true;
 
-                partitions = {
+                mantle = {
                   enable = true;
-                  esp.size = "128M";
-                  store.size = "5G";
-                  store-verity.size = "275M";
-                  var.size = "5G";
+                  name = "mantle-orin";
+                  version = "${toString self.lastModified}-${self.shortRev or "dev"}";
+                  overlay.enable = true;
+                  partitions = {
+                    esp.size = "128M";
+                    store.size = "5G";
+                    store-verity.size = "275M";
+                    var.size = "5G";
+                  };
                 };
 
-                system.name = "mantle-orin";
-                system.version = "${toString self.lastModified}-${self.shortRev or "dev"}";
                 networking.hostName = "mantle-orin";
 
                 boot.initrd.systemd.emergencyAccess = true;
-                users.users.root.password = "";
+                users.users.root.password = "!";
+                users.users.root.openssh.authorizedKeys.keys = [ deviceSshPublicKey ];
 
                 networking = {
                   useDHCP = false;
@@ -137,9 +142,8 @@
 
                 services.openssh = {
                   enable = true;
-                  settings.PasswordAuthentication = true;
+                  settings.PasswordAuthentication = false;
                 };
-
               }
             )
           ];
@@ -156,6 +160,7 @@
       devShells = forAllSystems (system: {
         default = pkgsFor.${system}.mkShellNoCC {
           DEVICE_URL = "root@${deviceIP}";
+          SSH_KEY = "~/.ssh/mantle-test";
         };
       });
 
