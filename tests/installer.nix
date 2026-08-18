@@ -104,7 +104,7 @@ in
         deployer.succeed("mkdir -p /mnt/esp && mount /dev/vdb1 /mnt/esp")
         uki_listing = deployer.succeed("find /mnt/esp -name '*.efi' -ls")
         print(uki_listing)
-        assert "${imageName}_${image1Version}+2.efi" in uki_listing, uki_listing
+        assert "${imageName}_${image1Version}.efi" in uki_listing, uki_listing
         deployer.succeed("umount /mnt/esp")
 
       with subtest("installed system boots from the written disk"):

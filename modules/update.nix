@@ -73,7 +73,7 @@ in
 
         "30-uki" = {
           Source = {
-            MatchPattern = [ "${config.boot.uki.name}_@v+@t.efi.zst" ];
+            MatchPattern = [ "${config.boot.uki.name}_@v.efi.zst" ];
             Path = "/var/updates/";
             Type = "regular-file";
           };
@@ -81,8 +81,14 @@ in
             Type = "regular-file";
             Path = "/EFI/Linux";
             PathRelativeTo = "boot";
-            MatchPattern = [ "${config.boot.uki.name}_@v+@t.efi" ];
+            MatchPattern = [
+              "${config.boot.uki.name}_@v+@l-@d.efi"
+              "${config.boot.uki.name}_@v+@l.efi"
+              "${config.boot.uki.name}_@v.efi"
+            ];
             Mode = "0444";
+            TriesLeft = 3;
+            TriesDone = 0;
             InstancesMax = 2;
           };
         };

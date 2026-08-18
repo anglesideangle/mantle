@@ -43,8 +43,6 @@ in
   ];
 
   config = mkIf cfg.enable {
-    boot.uki.tries = 2;
-
     image.repart = {
       verityStore = {
         enable = true;
