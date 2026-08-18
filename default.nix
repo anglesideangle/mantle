@@ -85,8 +85,7 @@ let
 
   overlayConfig = baseConfig.extendModules {
     modules = [
-      ({ lib, config, ... }: {
-        system.image.version = lib.mkForce "${config.mantle.version}~overlay";
+      ({ config, ... }: {
         assertions = [
           {
             assertion = config.mantle.overlay.enable;
@@ -232,7 +231,7 @@ let
 
   deploy-update =
     let
-      inherit (updateConfig.config.mantle) version;
+      inherit (updateConfig.config.system.image) version;
     in
     pkgs.writeShellApplication {
       name = "deploy-update";

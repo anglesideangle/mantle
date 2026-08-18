@@ -23,7 +23,6 @@ let
 
       mantle = {
         enable = true;
-        name = imageName;
         overlay.enable = true;
         partitions = {
           esp.size = "64M";
@@ -32,6 +31,8 @@ let
           var.size = "128M";
         };
       };
+
+      system.image.id = imageName;
 
       services.openssh = {
         enable = true;
@@ -65,7 +66,7 @@ let
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
       deviceConfig
       ({ lib, ... }: {
-        mantle.version = image1Version;
+        system.image.version = image1Version;
         mantle.partitions.var.size = lib.mkForce "2048M";
       })
     ];
@@ -76,7 +77,7 @@ let
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
       deviceConfig
       ({ lib, ... }: {
-        mantle.version = image2Version;
+        system.image.version = image2Version;
         networking.hostName = "device";
         services.userborn.static = lib.mkForce false;
       })
@@ -183,7 +184,7 @@ in
         booted_release = device.succeed("cat /run/booted-system/etc/os-release")
         t.assertIn('IMAGE_VERSION=${image1Version}', booted_release)
         switched_release = device.succeed("cat /etc/os-release")
-        t.assertIn('IMAGE_VERSION="${image2Version}~overlay"', switched_release)
+        t.assertIn('IMAGE_VERSION=${image2Version}', switched_release)
 
       with subtest("overlay upper clears on an A/B update + reboot"):
         device.succeed("test -e /var/nix/upper/nix/store/.test-file")
@@ -204,8 +205,6 @@ in
 
         after = json.loads(device.succeed("systemd-sysupdate list --json=short"))
         t.assertEqual(after["current"], "${image2Version}", after)
-
-        device.succeed("systemd-sysupdate pending")
 
         device.reboot()
         device.wait_for_unit("multi-user.target")

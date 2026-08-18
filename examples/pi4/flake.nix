@@ -41,8 +41,6 @@
 
               mantle = {
                 enable = true;
-                name = "mantle-pi";
-                version = "${toString self.lastModified}-${self.shortRev or "dev"}";
                 overlay.enable = true;
                 partitions = {
                   esp.size = "128M";
@@ -51,6 +49,9 @@
                   var.size = "5G";
                 };
               };
+
+              system.image.id = "mantle-pi";
+              system.image.version = "${toString self.lastModified}-${self.shortRev or "dev"}";
 
               networking.hostName = "mantle-pi";
             }

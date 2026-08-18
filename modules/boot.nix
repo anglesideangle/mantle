@@ -15,12 +15,6 @@ let
 in
 {
   config = mkIf cfg.enable {
-    system.image.id = cfg.name;
-    system.image.version = cfg.version;
-
-    boot.uki.name = cfg.name;
-    boot.uki.version = cfg.version;
-
     system.nixos-init.enable = true;
     boot.initrd.systemd.enable = true;
 

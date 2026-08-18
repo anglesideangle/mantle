@@ -112,8 +112,6 @@
 
                 mantle = {
                   enable = true;
-                  name = "mantle-orin";
-                  version = "${toString self.lastModified}-${self.shortRev or "dev"}";
                   overlay.enable = true;
                   partitions = {
                     esp.size = "128M";
@@ -122,6 +120,9 @@
                     var.size = "4G";
                   };
                 };
+
+                system.image.id = "mantle-orin";
+                system.image.version = "${toString self.lastModified}-${self.shortRev or "dev"}";
 
                 networking = { inherit hostName; };
 

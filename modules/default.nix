@@ -18,9 +18,6 @@ with lib;
 
     overlay.enable = mkEnableOption "enable overlay";
 
-    name = mkOption { type = types.str; };
-    version = mkOption { type = types.str; };
-
     partitions = {
       esp = {
         label = mkOption {

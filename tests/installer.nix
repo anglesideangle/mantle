@@ -21,7 +21,6 @@ let
 
     mantle = {
       enable = true;
-      name = imageName;
       partitions = {
         esp.size = "64M";
         store.size = "1024M";
@@ -29,13 +28,15 @@ let
         var.size = "128M";
       };
     };
+
+    system.image.id = imageName;
   };
 
   m1 = self.lib.init pkgs {
     modules = [
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
       deviceConfig
-      { mantle.version = image1Version; }
+      { system.image.version = image1Version; }
     ];
   };
 
@@ -43,7 +44,7 @@ let
     modules = [
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
       deviceConfig
-      { mantle.version = image2Version; }
+      { system.image.version = image2Version; }
     ];
   };
 in
