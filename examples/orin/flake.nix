@@ -1,6 +1,7 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:anglesideangle/nixpkgs/mesa-libclc-cross";
     mantle = {
       url = "path:/home/asa/Projects/mantle";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -29,7 +30,8 @@
 
       inherit (nixpkgs) lib;
 
-      deviceIP = "192.168.1.50";
+      deviceIP = "10.42.0.1";
+      hostName = "mantle-orin";
 
       deviceSshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJyd6eNE/R46/uTnQRpW/StRIaGc5yzO86kWeQNBny+H hello@rickastley.co.uk";
 
@@ -48,8 +50,8 @@
                   inherit buildPlatform;
                   hostPlatform = {
                     system = "aarch64-linux";
-                    # gcc.arch = "armv8.2-a";
-                    # gcc.tune = "cortex-a78ae";
+                    gcc.arch = "armv8.2-a";
+                    gcc.tune = "cortex-a78ae";
                   };
                   overlays = [
                     (final: prev: {
@@ -115,34 +117,49 @@
                   overlay.enable = true;
                   partitions = {
                     esp.size = "128M";
-                    store.size = "5G";
+                    store.size = "4G";
                     store-verity.size = "275M";
-                    var.size = "5G";
+                    var.size = "4G";
                   };
                 };
 
-                networking.hostName = "mantle-orin";
+                networking = { inherit hostName; };
 
                 boot.initrd.systemd.emergencyAccess = true;
                 users.users.root.password = "!";
                 users.users.root.openssh.authorizedKeys.keys = [ deviceSshPublicKey ];
 
-                networking = {
-                  useDHCP = false;
-                  interfaces."eth0" = {
-                    useDHCP = false;
-                    ipv4.addresses = [
-                      {
-                        address = deviceIP;
-                        prefixLength = 24;
-                      }
-                    ];
+                systemd.network = {
+                  enable = true;
+                  networks."10-tether" = {
+                    matchConfig.Name = "eth0";
+
+                    networkConfig = {
+                      Address = "${deviceIP}/24";
+                      DHCPServer = "yes";
+                    };
+
+                    dhcpServerConfig = {
+                      EmitRouter = false;
+                      EmitDNS = false;
+
+                      PoolOffset = 10;
+                      PoolSize = 50;
+                    };
                   };
                 };
+
+                networking.firewall.allowedUDPPorts = [ 67 ];
 
                 services.openssh = {
                   enable = true;
                   settings.PasswordAuthentication = false;
+                  hostKeys = [
+                    {
+                      type = "ed25519";
+                      path = "/var/ssh/ssh_host_ed25519_key";
+                    }
+                  ];
                 };
               }
             )

@@ -33,11 +33,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786469366,
-        "narHash": "sha256-Yluvq6Fw7wocxrM2M8XM+x3OeBqy/FfMn+goNrtb+aY=",
+        "lastModified": 1786998629,
+        "narHash": "sha256-h+s0VaGO2WFQX2ME+fRVOY2oKb/EUDzMagpYOxUM6wM=",
         "owner": "anduril",
         "repo": "jetpack-nixos",
-        "rev": "cfce7e3fc84b7d13ef82b48f3fb821409d9416b2",
+        "rev": "a3d955a85d1c2dd6d311f76bbc901d56094d337d",
         "type": "github"
       },
       "original": {
@@ -54,8 +54,8 @@
         ]
       },
       "locked": {
-        "lastModified": 1786914345,
-        "narHash": "sha256-K1RaoxU6JWEoW34Ad5XJhopkXX5vnGvDlpmTdblbAiM=",
+        "lastModified": 1787032217,
+        "narHash": "sha256-N0ozh4AWOYD+0ZIcUsWY+mQLWmaqiX0efhM9W1Vxojs=",
         "path": "/home/asa/Projects/mantle",
         "type": "path"
       },
@@ -66,16 +66,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1786862985,
-        "narHash": "sha256-FBJRXmbGXiSUDvYEbfLYRkckayyZ6SK1UEqhCrIZ2Cs=",
-        "owner": "nixos",
+        "lastModified": 1787007127,
+        "narHash": "sha256-9gm4KwQT3l7eZjjVt9KgIxwHvFm6huuUMP7/8xpL62g=",
+        "owner": "anglesideangle",
         "repo": "nixpkgs",
-        "rev": "e5bdc4a41d4c072fe1e3787eaa0320a384741d44",
+        "rev": "37d7fb996fb3101f7f16b04109091bafc9779c60",
         "type": "github"
       },
       "original": {
-        "owner": "nixos",
-        "ref": "nixos-unstable",
+        "owner": "anglesideangle",
+        "ref": "mesa-libclc-cross",
         "repo": "nixpkgs",
         "type": "github"
       }

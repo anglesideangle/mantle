@@ -82,7 +82,6 @@ in
           Type = partitionTypes.usr;
           Label = storeLabel;
           Format = partitions.store.format;
-          # Compression = "zstd";
           Verity = "data";
           VerityMatchKey = "store";
           ReadOnly = "yes";
@@ -100,8 +99,6 @@ in
         VerityMatchKey = "store";
         Minimize = "off";
         SplitName = "store-verity_%U";
-        # VerityHashBlockSizeBytes = "4096";
-        # VerityDataBlockSizeBytes = "4096";
         SizeMinBytes = partitions.store-verity.size;
         SizeMaxBytes = partitions.store-verity.size;
       };
@@ -125,7 +122,6 @@ in
         Format = partitions.var.format;
         Label = partitions.var.label;
         Minimize = "off";
-        # GrowFileSystem = "yes";
         Weight = "1000";
         FactoryReset = "yes";
       }
@@ -137,8 +133,8 @@ in
         Type = partitionTypes.var;
         Format = partitions.var.format;
         Label = partitions.var.label;
+        GrowFileSystem = false;
         Minimize = "off";
-        # GrowFileSystem = "yes";
         Weight = "1000";
       };
     };

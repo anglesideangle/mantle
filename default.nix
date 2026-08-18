@@ -230,18 +230,22 @@ let
     '';
   };
 
-  deploy-update = pkgs.writeShellApplication {
-    name = "deploy-update";
-    runtimeInputs = [
-      pkgs.coreutils
-      pkgs.openssh
-    ];
-    text = ''
-      ${getSshOpts}
-      scp -r "''${sshOpts[@]}" "${updatePayload}" "${getSshUrl}:/var/updates/"
-      ssh "''${sshOpts[@]}" "${getSshUrl}" "systemd-sysupdate update --reboot"
-    '';
-  };
+  deploy-update =
+    let
+      inherit (updateConfig.config.mantle) version;
+    in
+    pkgs.writeShellApplication {
+      name = "deploy-update";
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.openssh
+      ];
+      text = ''
+        ${getSshOpts}
+        scp -r "''${sshOpts[@]}" "${updatePayload}" "${getSshUrl}:/var/updates/"
+        ssh "''${sshOpts[@]}" "${getSshUrl}" "systemd-sysupdate update ${version} --reboot"
+      '';
+    };
 
   # Activates the overlay and deploys the `updateToplevel` closure using rsync.
   deploy-overlay = pkgs.writeShellApplication {

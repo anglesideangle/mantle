@@ -38,12 +38,14 @@ in
     # can't create /usr/bin/env on immutable /usr
     environment.usrbinenv = mkForce null;
 
-    nix.enable = cfg.overlay.enable;
+    nix.enable = false;
     system.disableInstallerTools = true;
 
     security.account-utils.enable = true;
     security.enableWrappers = false;
     security.sudo.enable = false;
+
+    boot.kernelParams = [ "systemd.machine_id=firmware" ];
 
     networking.useNetworkd = mkDefault true;
 
