@@ -1,7 +1,6 @@
 {
   inputs = {
-    # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    nixpkgs.url = "github:anglesideangle/nixpkgs/mesa-libclc-cross";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     mantle = {
       url = "path:/home/asa/Projects/mantle";
       inputs.nixpkgs.follows = "nixpkgs";

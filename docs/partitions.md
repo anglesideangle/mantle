@@ -1,0 +1,117 @@
+# Partitions
+
+Much of the system here is also described in [fitting everything
+together](https://0pointer.net/blog/fitting-everything-together.html), which I'd
+strongly recommend reading.
+
+A mantle system has the following partitions:
+
+| Partition        | GPT type     | Format | Label                                 |
+|------------------|--------------|--------|---------------------------------------|
+| `esp`            | `esp`        | vfat   | `boot`                                |
+| `store-A-verity` | `usr-verity` | raw    | `store-verity_<A-version>`            |
+| `store-A`        | `usr`        | erofs  | `store_<A-version>`                   |
+| `store-B-verity` | `usr-verity` | raw    | `_empty` / `store-verity_<B-version>` |
+| `store-B`        | `usr`        | erofs  | `_empty` / `store_<B-version>`        |
+| `var`            | `var`        | ext4   | `persistent`                          |
+
+The sizes and formats can be configured via `mantle.partitions`.
+
+
+## A/B Updates
+
+The A/B update model, which is commonly used on embedded systems and
+[android](https://source.android.com/docs/core/ota/ab), allows for robust
+updates. It requires two root partitions with system images (hence the name) and
+two [UKIs](https://uapi-group.org/specifications/specs/unified_kernel_image/)
+in the `esp` partition. Updates are implemented by replacing the contents of
+the inactive root partition, UKI, and verity partition with the corresponding
+parts of the new update. The relationship between UKIs and the system images
+is elaborated on in [./boot.md] and the verity partitions are explained in
+[./security.md].
+
+> [!NOTE]
+> In the case of appliance nixos systems, such as mantle, the image only needs
+to contain a toplevel system closure, which has all information necessary
+to boot.
+> This means the A/B partitions in mantle are referred to as "store" partitions,
+rather than "root" partitions.
+
+The default bootloader, systemd-boot (which can be changed out depending on
+hardware requirements), is configured to try new UKIs twice. If the system
+does not fully boot from a specific UKI/image pair after 2 attempts, the UKI is
+marked as failed. systemd-boot will otherwise boot the UKI with the most recent
+version. This means the system does not accept broken updates, and will simply
+continue using the known working version.
+
+To illustrate how this system works, the following tables roughly show
+the state of a newly installed mantle system at version 1 before and after
+`systemd-sysupdate` installs an update to version 2:
+
+Partition labels:
+| Before           | After            |
+|------------------|------------------|
+| `boot`           | `boot`           |
+| `store-verity_1` | `store-verity_1` |
+| `store_1`        | `store_1`        |
+| `_empty`         | `store-verity_2` |
+| `_empty`         | `store_2`        |
+| `persistent`     | `persistent`     |
+
+UKIs in the ESP:
+| Before                        | After                          |
+|-------------------------------|--------------------------------|
+| `/boot/EFI/Linux/uki_1.efi`   | `/boot/EFI/Linux/uki_1.efi`    |
+|                               | `/boot/EFI/Linux/uki_2+2-0.efi`|
+
+Update files in `/var/updates`:
+| Before                                            | After      |
+|---------------------------------------------------|------------|
+| `/var/updates/uki_2.efi.zst`                      | (consumed) |
+| `/var/updates/image_2.store_<uuid>.raw.zst`       | (consumed) |
+| `/var/updates/image_2.store-verity_<uuid>.raw.zst`| (consumed) |
+
+After `systemd-sysupdate update`, the previously unused store partitions
+(marked as `_empty`) hold the new image and verity hash and the new UKI is
+installed alongside the old one in the ESP. The suffix `+2-0` indicates that
+this UKI has 2 attempts and has used 0 of them. If it succeeds on the next
+boot, the suffix will be removed, otherwise, the name will be incremented
+(first to `+2-1`) until the the full boot process succeeds or the UKI uses
+up its maximum attempts. Boot counting and sorting is covered by the [uapi
+group](https://uapi-group.org/specifications/specs/boot_loader_specification/#bo
+ot-counting).
+
+> [!NOTE]
+> This update method relies on a single bootloader EFI executable to chose which
+system version to boot into. Because of this, the bootloader itself cannot be
+updated with A/B versioning and rollbacks, and updating it may brick the system.
+Mantle currently only supports updating the bootloader by re-installing.
+
+## Immutability
+
+The only mutable partitions in a mantle system are the ESP and var partitions,
+and the ESP is only modified to update the UKIs, meaning `/var` is the only
+location that can contain persistent mutable data. This is somewhat extreme,
+but done for good reason. Mantle configures nixos to provide a system in which
+almost nothing can be influenced by state that is not reproducible from your
+repository. If more mutability is desired, you can, for example, re-enable the
+mutable `/etc` overlay, which allows persistent writes on top of the `/etc`
+generated by nixos:
+
+```nix
+system.etc.overlay.enable = lib.mkForce true;
+```
+
+<!-- Everything in a mantle system is immutable by default. The default format for the store partitions -->
+
+<!-- Instead of a FHS-compliant root filesystem (`/usr`, `/lib`, `/etc`, -->
+<!-- etc), booting NixOS into stage 2 requires only a system closure -->
+<!-- in `/nix/store`. The store partition is mounted -->
+
+<!-- A traditional nixos system already implements -->
+<!-- atomic updates because each system `toplevel` closure is stored at -->
+<!-- `/nix/store/<hash>-nixos-system-<name>-<version>` at a unique hash. -->
+
+<!-- Everything else is either not needed or mounted on init (`/etc`, `/run`). -->
+
+<!-- NixOS requires only `/nix/store` containing the system closure and an esp partition in order to boot, so mantle does not store entire root filesystems, but rather . -->

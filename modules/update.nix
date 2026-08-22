@@ -87,7 +87,7 @@ in
               "${config.boot.uki.name}_@v.efi"
             ];
             Mode = "0444";
-            TriesLeft = 3;
+            TriesLeft = 2;
             TriesDone = 0;
             InstancesMax = 2;
           };
