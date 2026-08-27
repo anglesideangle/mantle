@@ -27,6 +27,7 @@ in
     services.userborn.static = !cfg.overlay.enable;
     system.switch.enable = cfg.overlay.enable;
 
+    boot.loader.systemd-boot.enable = true;
     boot.tmp.useTmpfs = true;
 
     # can't create /usr/bin/env on immutable /usr

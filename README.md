@@ -1,11 +1,11 @@
 # mantle
 
 Mantle is a framework for using nixos and systemd to build and deploy
-image-based emedded linux systems. It provides a hybrid deployment mechanism,
-allowing for both high reliability a/b updates and fast overlay-based updates.
-Building and deploying custom embedded linux images is usually a daunting
-task, and mantle intends to make it more approachable with examples and very
-comprehensive documentation.
+image-based appliance linux systems. It provides a hybrid deployment mechanism,
+allowing for both high reliability A/B updates and fast overlay-based updates.
+Building and deploying custom linux images is usually a daunting task, and
+mantle intends to make it more approachable with examples and very comprehensive
+documentation.
 
 If your deployment process looks like:
 

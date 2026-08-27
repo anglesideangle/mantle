@@ -17,7 +17,6 @@ A mantle system has the following partitions:
 
 The sizes and formats can be configured via `mantle.partitions`.
 
-
 ## A/B Updates
 
 The A/B update model, which is commonly used on embedded systems and
@@ -37,12 +36,11 @@ to boot.
 > This means the A/B partitions in mantle are referred to as "store" partitions,
 rather than "root" partitions.
 
-The default bootloader, systemd-boot (which can be changed out depending on
-hardware requirements), is configured to try new UKIs twice. If the system
-does not fully boot from a specific UKI/image pair after 2 attempts, the UKI is
-marked as failed. systemd-boot will otherwise boot the UKI with the most recent
-version. This means the system does not accept broken updates, and will simply
-continue using the known working version.
+The default bootloader, systemd-boot, is configured to try new UKIs twice. If
+the system does not fully boot from a specific UKI/image pair after 2 attempts,
+the UKI is marked as failed. systemd-boot will otherwise boot the UKI with the
+most recent version. This means the system does not accept broken updates, and
+will simply continue using the known working version.
 
 To illustrate how this system works, the following tables roughly show
 the state of a newly installed mantle system at version 1 before and after
