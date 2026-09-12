@@ -26,11 +26,8 @@ jobs:
       - id: matrix
         uses: Mic92/hestia/matrix@v3
         with:
-          flake: ".#checks"                        # default
+          flake: ".#checks"
           nix-eval-jobs: "nix run nixpkgs#nix-eval-jobs --"
-          # runner-map: |
-          #   x86_64-linux=ubuntu-24.04
-          #   aarch64-darwin=macos-14,self-hosted
 
   build:
     needs: eval
