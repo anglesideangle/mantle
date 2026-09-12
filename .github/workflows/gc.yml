@@ -1,0 +1,36 @@
+# from https://github.com/Mic92/hestia/blob/8630d70f9f9a3fbdf889d0f42133bd458fdd3465/.github/workflows/gc.yml
+
+name: Cache GC
+
+concurrency:
+  group: hestia-gc
+  cancel-in-progress: false
+
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Plan only; do not repack, touch, or delete anything.
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  gc:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: NixOS/nix-installer-action@main
+      - uses: Mic92/hestia@v3
+        with:
+          version: ""
+      - name: Run garbage collection
+        run: '"$HESTIA_BIN" gc ${{ inputs.dry-run && ''--dry-run'' || '''' }}'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
