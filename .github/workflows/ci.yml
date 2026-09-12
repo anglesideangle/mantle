@@ -28,6 +28,9 @@ jobs:
         with:
           flake: ".#checks"
           nix-eval-jobs: "nix run nixpkgs#nix-eval-jobs --"
+          runner-map: |
+            x86_64-linux=ubuntu-24.04
+            aarch64-linux=ubuntu-24.04-arm
 
   build:
     needs: eval
