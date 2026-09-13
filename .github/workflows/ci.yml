@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 jobs:
-  eval:
+  eval-x86:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
@@ -26,25 +26,55 @@ jobs:
       - id: matrix
         uses: Mic92/hestia/matrix@v3
         with:
-          flake: ".#checks"
+          flake: ".#checks.x86_64-linux"
           nix-eval-jobs: "nix run nixpkgs#nix-eval-jobs --"
-          runner-map: |
-            x86_64-linux=ubuntu-24.04
-            aarch64-linux=ubuntu-24.04-arm
 
-  build:
-    needs: eval
-    if: needs.eval.outputs.any-jobs == 'true'
+  build-x86:
+    needs: eval-x86
+    if: needs.eval-x86.outputs.any-jobs == 'true'
     name: ${{ matrix.name }} (${{ matrix.system }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.eval.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.eval-x86.outputs.matrix) }}
     steps:
       - uses: NixOS/nix-installer-action@main
       - uses: Mic92/hestia@v3
         with:
-          wait-manifest-version: ${{ needs.eval.outputs.manifest-version }}
+          wait-manifest-version: ${{ needs.eval-x86.outputs.manifest-version }}
+      - name: Prefetch drv closure
+        run: '"$HESTIA_BIN" prefetch ${{ matrix.installables }}'
+      - run: nix build -L ${{ matrix.installables }}
+
+  eval-arm:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      any-jobs: ${{ steps.matrix.outputs.any-jobs }}
+      manifest-version: ${{ steps.matrix.outputs.manifest-version }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: NixOS/nix-installer-action@main
+      - uses: Mic92/hestia@v3
+      - id: matrix
+        uses: Mic92/hestia/matrix@v3
+        with:
+          flake: ".#checks.aarch64-linux"
+          nix-eval-jobs: "nix run nixpkgs#nix-eval-jobs --"
+
+  build-arm:
+    needs: eval-arm
+    if: needs.eval-arm.outputs.any-jobs == 'true'
+    name: ${{ matrix.name }} (${{ matrix.system }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.eval-arm.outputs.matrix) }}
+    steps:
+      - uses: NixOS/nix-installer-action@main
+      - uses: Mic92/hestia@v3
+        with:
+          wait-manifest-version: ${{ needs.eval-arm.outputs.manifest-version }}
       - name: Prefetch drv closure
         run: '"$HESTIA_BIN" prefetch ${{ matrix.installables }}'
       - run: nix build -L ${{ matrix.installables }}

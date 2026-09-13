@@ -14,8 +14,6 @@ let
     {
       nixpkgs = { inherit (pkgs.stdenv) hostPlatform buildPlatform; };
 
-      boot.loader.systemd-boot.enable = true;
-
       boot.initrd.availableKernelModules = [
         "virtio_pci"
         "virtio_blk"

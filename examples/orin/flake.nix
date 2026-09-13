@@ -106,9 +106,6 @@
 
                 hardware.nvidia-jetpack.kernel.realtime = true;
 
-                # jetson orin supports uefi
-                boot.loader.systemd-boot.enable = true;
-
                 mantle = {
                   enable = true;
                   overlay.enable = true;
