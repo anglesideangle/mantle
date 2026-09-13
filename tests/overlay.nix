@@ -190,7 +190,7 @@ in
         device.succeed("cmp -s /var/nix/prev-os-release /run/booted-system/etc/os-release")
 
         device.succeed(
-          "mount -t 9p -o trans=virtio,version=9p2000.L,ro updates /var/updates"
+          "mount -t virtiofs -o ro updates /var/updates"
         )
         listing = device.succeed("ls -l /var/updates")
         assert "store" in listing and ".raw.zst" in listing, listing

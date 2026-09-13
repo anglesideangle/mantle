@@ -111,7 +111,7 @@ in
       with subtest("stage v2 update payload"):
         machine.succeed("mkdir -p /var/updates")
         machine.succeed(
-          "mount -t 9p -o trans=virtio,version=9p2000.L,ro updates /var/updates"
+          "mount -t virtiofs -o ro updates /var/updates"
         )
         listing = machine.succeed("ls -l /var/updates")
         assert "store" in listing and ".raw.zst" in listing, listing

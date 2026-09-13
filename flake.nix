@@ -30,10 +30,6 @@
       );
 
       templates = {
-        pi4 = {
-          path = ./examples/pi4;
-          description = "pi4 minimal template";
-        };
         orin = {
           path = ./examples/orin;
           description = "jetson orin minimal template";

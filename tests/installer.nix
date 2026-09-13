@@ -128,7 +128,7 @@ in
       with subtest("installed system takes an A/B update to v2"):
         installed.succeed("mkdir -p /var/updates")
         installed.succeed(
-          "mount -t 9p -o trans=virtio,version=9p2000.L,ro updates /var/updates"
+          "mount -t virtiofs -o ro updates /var/updates"
         )
         listing = installed.succeed("ls -l /var/updates")
         assert "store" in listing and ".raw.zst" in listing, listing
