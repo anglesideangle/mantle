@@ -44,6 +44,7 @@ in
 
   config = mkIf cfg.enable {
     image.repart = {
+      enable = true;
       verityStore = {
         enable = true;
         partitionIds = {
