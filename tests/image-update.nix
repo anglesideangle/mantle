@@ -1,6 +1,6 @@
 {
   pkgs,
-  self,
+  mantle,
 }:
 let
   common = import ./common.nix { inherit pkgs; };
@@ -30,7 +30,7 @@ let
     system.image.id = imageName;
   };
 
-  m1 = self.lib.init pkgs {
+  m1 = mantle pkgs {
     modules = [
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
       deviceConfig
@@ -38,7 +38,7 @@ let
     ];
   };
 
-  m2 = self.lib.init pkgs {
+  m2 = mantle pkgs {
     modules = [
       "${pkgs.path}/nixos/modules/testing/test-instrumentation.nix"
       deviceConfig
