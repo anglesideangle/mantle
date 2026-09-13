@@ -15,19 +15,53 @@
       ];
       forAllSystems = nixpkgs.lib.genAttrs allSystems;
       pkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system});
+
+      mkImage =
+        pkgs:
+        (self.lib.init pkgs {
+          modules = [
+            {
+              nixpkgs = { inherit (pkgs.stdenv) hostPlatform buildPlatform; };
+
+              system.image = {
+                id = "mantle";
+                version = "1";
+              };
+
+              mantle = {
+                enable = true;
+                partitions = {
+                  esp.size = "64M";
+                  store.size = "1024M";
+                  store-verity.size = "64M";
+                  var.size = "128M";
+                };
+              };
+            }
+          ];
+        }).fullPartitions;
     in
     {
       lib.init = import ./.;
 
       nixosModules.default = import ./modules;
 
-      checks = forAllSystems (
-        system:
-        import ./tests {
-          pkgs = pkgsFor.${system};
-          inherit self;
-        }
-      );
+      checks = {
+        x86_64-linux =
+          (import ./tests {
+            pkgs = pkgsFor.x86_64-linux;
+            inherit self;
+          })
+          // {
+            image-x86_64 = mkImage pkgsFor.x86_64-linux;
+            image-aarch64 = mkImage pkgsFor.x86_64-linux.pkgsCross.aarch64-multiplatform;
+          };
+
+        aarch64-linux = {
+          image-aarch64 = mkImage pkgsFor.aarch64-linux;
+          image-x86_64 = mkImage pkgsFor.aarch64-linux.pkgsCross.gnu64;
+        };
+      };
 
       templates = {
         orin = {
