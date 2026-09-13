@@ -52,11 +52,10 @@
             pkgs = pkgsFor.x86_64-linux;
             inherit self;
           })
-          // {
-            image-x86_64 = mkImage pkgsFor.x86_64-linux;
-            image-aarch64 = mkImage pkgsFor.x86_64-linux.pkgsCross.aarch64-multiplatform;
-          };
-
+          // (import ./tests {
+            pkgs = pkgsFor.x86_64-linux.pkgsCross.aarch64-multiplatform;
+            inherit self;
+          });
         aarch64-linux = {
           image-aarch64 = mkImage pkgsFor.aarch64-linux;
           image-x86_64 = mkImage pkgsFor.aarch64-linux.pkgsCross.gnu64;
