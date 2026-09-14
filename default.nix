@@ -9,7 +9,7 @@ let
     config: partition:
     let
       uuid-file = pkgs.runCommand "get-uuid" { } ''
-        ${pkgs.jq}/bin/jq -r \
+        ${pkgs.buildPackages.jq}/bin/jq -r \
           '.[] | select(.label == "${partition.repartConfig.Label}") | .uuid' \
           "${config.system.build.image}/repart-output.json" \
           > $out

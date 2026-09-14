@@ -35,7 +35,7 @@
       ${name}_disk_image = tempfile.NamedTemporaryFile()
 
       subprocess.run([
-        "${pkgs.qemu}/bin/qemu-img",
+        "${pkgs.buildPackages.qemu}/bin/qemu-img",
         "create",
         "-f",
         "qcow2",

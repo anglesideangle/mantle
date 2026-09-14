@@ -84,7 +84,7 @@ let
 
   sshKey = pkgs.runCommand "test-ssh-key" { } ''
     mkdir -p $out
-    ${pkgs.openssh}/bin/ssh-keygen -t ed25519 -N "" -f $out/key
+    ${pkgs.buildPackages.openssh}/bin/ssh-keygen -t ed25519 -N "" -f $out/key
     cp $out/key $out/id_ed25519
     cp $out/key.pub $out/id_ed25519.pub
   '';
