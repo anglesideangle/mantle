@@ -48,7 +48,8 @@ jobs:
         run: |
           hashes=$(printf '%s\n' ${{ matrix.installables }} |
             awk -F/ '{printf "%s%s", (NR > 1 ? "," : ""), substr($NF, 1, 32)}')
-          curl -fsS "http://$HESTIA_LISTEN/closure/$hashes" | nix-store --import
+          curl -fsS "http://$HESTIA_LISTEN/closure/$hashes" | nix-store --import ||
+            echo "::warning::drv closure prefetch failed; falling back to substituter"
       - name: Enable unprivileged user namespaces
         run: sudo sysctl kernel.apparmor_restrict_unprivileged_userns=0
       - run: nix build -L ${{ matrix.installables }}
@@ -88,7 +89,8 @@ jobs:
         run: |
           hashes=$(printf '%s\n' ${{ matrix.installables }} |
             awk -F/ '{printf "%s%s", (NR > 1 ? "," : ""), substr($NF, 1, 32)}')
-          curl -fsS "http://$HESTIA_LISTEN/closure/$hashes" | nix-store --import
+          curl -fsS "http://$HESTIA_LISTEN/closure/$hashes" | nix-store --import ||
+            echo "::warning::drv closure prefetch failed; falling back to substituter"
       - name: Enable unprivileged user namespaces
         run: sudo sysctl kernel.apparmor_restrict_unprivileged_userns=0
       - run: nix build -L ${{ matrix.installables }}
