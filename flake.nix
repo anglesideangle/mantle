@@ -78,6 +78,32 @@
         };
       });
 
-      formatter = forAllSystems (system: pkgsFor.${system}.nixfmt-tree);
+      formatter = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor.${system};
+        in
+        pkgs.treefmt.withConfig {
+          runtimeInputs = [
+            pkgs.nixfmt
+            pkgs.yamlfmt
+          ];
+          settings = {
+            formatter = {
+              nix = {
+                command = "nixfmt";
+                includes = [ "*.nix" ];
+              };
+              yaml = {
+                command = "yamlfmt";
+                includes = [
+                  "*.yaml"
+                  "*.yml"
+                ];
+              };
+            };
+          };
+        }
+      );
     };
 }

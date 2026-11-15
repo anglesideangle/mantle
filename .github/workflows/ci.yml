@@ -3,15 +3,12 @@ on:
   push:
     branches: [main]
   pull_request:
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 permissions:
   contents: read
   actions: read
-
 jobs:
   eval-x86:
     runs-on: ubuntu-latest
@@ -30,7 +27,6 @@ jobs:
         with:
           flake: ".#checks.x86_64-linux"
           nix-eval-jobs: "nix run nixpkgs#nix-eval-jobs --"
-
   build-x86:
     needs: eval-x86
     if: needs.eval-x86.outputs.any-jobs == 'true'
@@ -53,7 +49,6 @@ jobs:
       - name: Enable unprivileged user namespaces
         run: sudo sysctl kernel.apparmor_restrict_unprivileged_userns=0
       - run: nix build -L ${{ matrix.installables }}
-
   eval-arm:
     runs-on: ubuntu-24.04-arm
     outputs:
@@ -71,7 +66,6 @@ jobs:
         with:
           flake: ".#checks.aarch64-linux"
           nix-eval-jobs: "nix run nixpkgs#nix-eval-jobs --"
-
   build-arm:
     needs: eval-arm
     if: needs.eval-arm.outputs.any-jobs == 'true'
@@ -94,7 +88,6 @@ jobs:
       - name: Enable unprivileged user namespaces
         run: sudo sysctl kernel.apparmor_restrict_unprivileged_userns=0
       - run: nix build -L ${{ matrix.installables }}
-
   fmt:
     runs-on: ubuntu-latest
     steps:
